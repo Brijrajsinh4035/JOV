@@ -11,13 +11,15 @@ import TasksPage from '../pages/Tasks/TasksPage';
 import RisksPage from '../pages/Risks/RisksPage';
 import ReportsPage from '../pages/Reports/ReportsPage';
 import LoginPage from '../pages/Auth/LoginPage';
+import RegisterPage from '../pages/Auth/RegisterPage';
 import NotFoundPage from '../pages/NotFound/NotFoundPage';
 
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Public Route */}
+      {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       {/* Protected National Portal Routes */}
       <Route element={<ProtectedRoute />}>

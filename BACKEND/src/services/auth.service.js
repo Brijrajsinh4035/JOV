@@ -51,12 +51,15 @@ export const authService = {
     };
   },
 
-  register: async ({ username, email, password, role = 'user' }) => {
-    if (!username || !email || !password) {
-      throw new ApiError(400, 'Username, email, and password are required');
+  register: async ({ name, username, email, password, role = 'user', department = '', designation = '' }) => {
+    const finalName = name || username;
+    const finalUsername = username || name;
+    if (!finalName || !email || !password) {
+      throw new ApiError(400, 'Full name, email, and password are required');
     }
 
-    const existing = await userDao.findByEmail(email);
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = await userDao.findByEmail(cleanEmail);
     if (existing) {
       throw new ApiError(409, 'User with this email already exists');
     }
@@ -64,12 +67,16 @@ export const authService = {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    const normalizedRole = role === 'admin' ? 'admin' : (role === 'viewer' ? 'viewer' : 'user');
     const newUser = await userDao.create({
-      username,
-      email,
+      name: finalName,
+      username: finalUsername,
+      email: cleanEmail,
       passwordHash,
-      role: role === 'admin' ? 'admin' : 'user',
-      isAdmin: role === 'admin',
+      role: normalizedRole,
+      isAdmin: normalizedRole === 'admin',
+      department: department.trim(),
+      designation: designation.trim(),
       createdAt: new Date(),
     });
 

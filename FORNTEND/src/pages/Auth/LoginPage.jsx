@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Input from '../../components/common/Input/Input';
 import Button from '../../components/common/Button/Button';
@@ -28,7 +28,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-3.5 sm:p-6 bg-slate-50 relative">
+    <div className="min-h-screen flex flex-col items-center justify-center p-3.5 sm:p-6 bg-slate-50 dark:bg-slate-950 transition-colors relative">
       {/* Top Tricolor Ribbon */}
       <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-white to-emerald-600 shadow-xs fixed top-0 left-0 z-10" />
 
@@ -40,22 +40,22 @@ const LoginPage = () => {
             <Building2 size={28} className="text-white hidden sm:block" />
           </div>
 
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-600">
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-500">
             Government of India
           </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-0.5 tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5 tracking-tight">
             Project Monitoring Platform
           </h2>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm px-2 leading-relaxed">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm px-2 leading-relaxed">
             Centralized National Infrastructure Surveillance & Milestone Management
           </p>
         </div>
 
         {/* Login Form Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-7 flex flex-col gap-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-7 flex flex-col gap-4 transition-colors">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {errorMessage && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs leading-relaxed">
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs leading-relaxed">
                 {errorMessage}
               </div>
             )}
@@ -81,7 +81,7 @@ const LoginPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-slate-400 hover:text-slate-700 transition-colors cursor-pointer flex items-center p-1"
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center p-1"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -89,8 +89,8 @@ const LoginPage = () => {
               required
             />
 
-            <div className="flex items-start sm:items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
-              <ShieldCheck size={16} className="text-blue-700 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="flex items-start sm:items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
+              <ShieldCheck size={16} className="text-blue-700 dark:text-blue-400 shrink-0 mt-0.5 sm:mt-0" />
               <span className="leading-snug">
                 Secured by 256-bit TLS encryption. Access restricted to authorized national project nodal officers.
               </span>
@@ -105,6 +105,17 @@ const LoginPage = () => {
             >
               Authenticate & Access Dashboard
             </Button>
+
+            {/* Link to Register */}
+            <div className="text-center text-xs text-slate-500 dark:text-slate-400 pt-1">
+              Don't have an official account?{' '}
+              <Link
+                to="/register"
+                className="font-bold text-blue-700 dark:text-blue-400 hover:underline"
+              >
+                Register Nodal Access
+              </Link>
+            </div>
           </form>
         </div>
       </div>

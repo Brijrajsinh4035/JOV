@@ -30,8 +30,9 @@ import {
   Building2,
   User,
   X,
+  Download,
 } from 'lucide-react';
-import { formatCrores, formatDate } from '../../utils/formatters';
+import { formatCrores, formatDate, exportToCSV } from '../../utils/formatters';
 
 const statusOptions = ['ALL', 'planning', 'active', 'on-hold', 'completed', 'cancelled'];
 
@@ -88,6 +89,41 @@ const ProjectsPage = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    if (!projects || projects.length === 0) {
+      dispatch(addToast({ type: 'warning', message: 'No projects match the current filter to export.' }));
+      return;
+    }
+
+    const headers = [
+      { label: 'Scheme Code', key: 'code', value: (p) => p.code || p.id || 'N/A' },
+      { label: 'Scheme Name', key: 'name', value: (p) => p.name || p.title || 'Untitled' },
+      { label: 'Ministry / Department', key: 'department', value: (p) => p.department || p.ministry || 'N/A' },
+      { label: 'Sponsoring Client', key: 'client', value: (p) => p.clientId?.name || p.clientId?.company || 'Central Ministry' },
+      { label: 'Status', key: 'status', value: (p) => (p.status || 'active').toUpperCase() },
+      { label: 'Priority', key: 'priority', value: (p) => p.priority || 'Medium' },
+      { label: 'Sanctioned Budget (Cr)', key: 'budget', value: (p) => formatCrores(p.budget) },
+      { label: 'Expenditure Incurred (Cr)', key: 'usedbudget', value: (p) => formatCrores(p.usedbudget || p.utilizedBudget) },
+      { label: 'Progress (%)', key: 'progress', value: (p) => `${p.progress || 0}%` },
+      { label: 'Start Date', key: 'startDate', value: (p) => formatDate(p.startDate) },
+      { label: 'Target Completion Date', key: 'endDate', value: (p) => formatDate(p.endDate || p.expectedCompletionDate) },
+      { label: 'Nodal Officer', key: 'officer', value: (p) => p.responsibleOfficer || p.ownerId?.name || 'N/A' },
+    ];
+
+    const filterTag = filters.status === 'ALL' ? 'all' : filters.status.toLowerCase();
+    const filename = `projects_directory_${filterTag}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    const success = exportToCSV(projects, headers, filename);
+    if (success) {
+      dispatch(
+        addToast({
+          type: 'success',
+          message: `Exported ${projects.length} project(s) (${filters.status.toUpperCase()} filter) to CSV`,
+        })
+      );
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       {/* Top Title & Actions */}
@@ -111,6 +147,17 @@ const ProjectsPage = () => {
             className="flex-1 sm:flex-initial"
           >
             Refresh
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            onClick={handleExportCSV}
+            className="flex-1 sm:flex-initial"
+            title={`Export ${projects.length} currently filtered projects to CSV`}
+          >
+            Export CSV ({projects.length})
           </Button>
 
           {isAdmin && (

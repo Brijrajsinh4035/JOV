@@ -6,6 +6,10 @@ export const authApi = {
     return await axiosClient.post(API_ENDPOINTS.AUTH.LOGIN, credentials);
   },
 
+  register: async (userData) => {
+    return await axiosClient.post(API_ENDPOINTS.AUTH.REGISTER, userData);
+  },
+
   getProfile: async () => {
     return await axiosClient.get(API_ENDPOINTS.AUTH.ME);
   },

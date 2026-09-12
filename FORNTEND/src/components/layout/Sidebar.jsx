@@ -190,11 +190,11 @@ const Sidebar = () => {
               {isAdmin ? 'ADMIN PRIVILEGES' : 'VIEWER ACCESS'}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-snug">
+          {/* <p className="text-[11px] text-slate-400 leading-snug">
             {isAdmin
               ? 'Full management authorization: create, edit, milestone updates & status transitions.'
               : 'Read-only monitoring access: viewing analytics, project status & generating reports.'}
-          </p>
+          </p> */}
         </div>
       </aside>
     </>

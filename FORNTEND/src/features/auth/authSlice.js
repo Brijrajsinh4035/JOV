@@ -40,6 +40,22 @@ export const loginUser = createAsyncThunk(
   }
 );
 
+export const registerUser = createAsyncThunk(
+  'auth/register',
+  async (userData, { rejectWithValue }) => {
+    try {
+      const data = await authApi.register(userData);
+      if (data?.token && data?.user) {
+        storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+        storage.set(APP_CONFIG.USER_KEY, data.user);
+      }
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || 'Registration failed. Verify credentials.');
+    }
+  }
+);
+
 export const fetchProfile = createAsyncThunk(
   'auth/fetchProfile',
   async (_, { rejectWithValue }) => {
@@ -82,6 +98,20 @@ export const authSlice = createSlice({
         state.token = action.payload.token;
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(registerUser.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      })
+      .addCase(registerUser.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

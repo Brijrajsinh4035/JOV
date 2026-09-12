@@ -27,10 +27,11 @@ import {
   User,
   Filter,
   X,
+  Download,
   CheckCircle,
   TrendingUp,
 } from 'lucide-react';
-import { formatDate, getInitials } from '../../utils/formatters';
+import { formatDate, getInitials, exportToCSV } from '../../utils/formatters';
 
 const KANBAN_COLUMNS = [
   {
@@ -320,6 +321,49 @@ const TasksPage = () => {
     return due < today;
   };
 
+  const handleExportCSV = () => {
+    if (!filteredTasks || filteredTasks.length === 0) {
+      dispatch(
+        addToast({
+          type: 'warning',
+          message: 'No tasks match the current filter selection to export.',
+        })
+      );
+      return;
+    }
+
+    const headers = [
+      { label: 'Task ID', key: 'id', value: (t) => (t._id || t.id || '').toString().slice(-8) },
+      { label: 'Task Title', key: 'title', value: (t) => t.title || 'Untitled' },
+      { label: 'Description', key: 'description', value: (t) => t.description || 'N/A' },
+      {
+        label: 'Linked Scheme / Project',
+        key: 'project',
+        value: (t) => t.projectId?.name || 'Unassigned',
+      },
+      { label: 'Status', key: 'status', value: (t) => (t.status || 'todo').toUpperCase() },
+      { label: 'Priority', key: 'priority', value: (t) => (t.priority || 'medium').toUpperCase() },
+      { label: 'Due Date', key: 'dueDate', value: (t) => formatDate(t.dueDate) },
+      { label: 'Assignee', key: 'assignedTo', value: (t) => t.assignedTo?.name || 'Unassigned' },
+    ];
+
+    const projTag = projectFilter === 'ALL' ? 'all_projects' : 'project_filtered';
+    const prioTag = priorityFilter === 'ALL' ? 'all_priorities' : priorityFilter.toLowerCase();
+    const filename = `task_tracker_${projTag}_${prioTag}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    const success = exportToCSV(filteredTasks, headers, filename);
+    if (success) {
+      dispatch(
+        addToast({
+          type: 'success',
+          message: `Exported ${filteredTasks.length} task(s) to CSV`,
+        })
+      );
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Top Banner & Header */}
@@ -331,7 +375,7 @@ const TasksPage = () => {
             </span>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Kanban Task Board
+                Task Management
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
                 Manage, drag & drop work items across development and operational workflows
@@ -378,6 +422,16 @@ const TasksPage = () => {
             onClick={loadData}
           >
             Refresh
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            onClick={handleExportCSV}
+            title={`Export ${filteredTasks.length} filtered tasks to CSV`}
+          >
+            Export CSV ({filteredTasks.length})
           </Button>
 
           <Button

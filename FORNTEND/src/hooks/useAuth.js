@@ -6,6 +6,7 @@ import {
   selectAuthLoading,
   selectAuthError,
   loginUser,
+  registerUser,
   logout as logoutAction,
 } from '../features/auth/authSlice';
 import { addToast } from '../features/ui/uiSlice';
@@ -41,6 +42,30 @@ export const useAuth = () => {
     [dispatch]
   );
 
+  const register = useCallback(
+    async (userData) => {
+      const result = await dispatch(registerUser(userData));
+      if (registerUser.fulfilled.match(result)) {
+        dispatch(
+          addToast({
+            type: 'success',
+            message: `Account registered successfully! Welcome, ${result.payload.user?.name || 'Officer'}!`,
+          })
+        );
+        return { success: true, data: result.payload };
+      } else {
+        dispatch(
+          addToast({
+            type: 'error',
+            message: result.payload || 'Registration failed. Please try again.',
+          })
+        );
+        return { success: false, error: result.payload };
+      }
+    },
+    [dispatch]
+  );
+
   const logout = useCallback(() => {
     dispatch(logoutAction());
     dispatch(
@@ -57,6 +82,7 @@ export const useAuth = () => {
     isLoading,
     error,
     login,
+    register,
     logout,
   };
 };

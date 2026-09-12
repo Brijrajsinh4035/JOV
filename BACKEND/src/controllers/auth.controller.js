@@ -11,8 +11,16 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const register = asyncHandler(async (req, res) => {
-  const { username, email, password, role } = req.body;
-  const result = await authService.register({ username, email, password, role });
+  const { name, username, email, password, role, department, designation } = req.body;
+  const result = await authService.register({
+    name,
+    username,
+    email,
+    password,
+    role,
+    department,
+    designation,
+  });
   return res
     .status(201)
     .json(new ApiResponse(201, result, 'User registered successfully'));

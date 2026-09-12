@@ -8,7 +8,6 @@ import {
 } from '../../features/dashboard/dashboardSlice';
 import { selectIsAdmin } from '../../features/auth/authSlice';
 import { addToast } from '../../features/ui/uiSlice';
-import { reportApi } from '../../api';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
@@ -21,7 +20,6 @@ import {
   IndianRupee,
   TrendingUp,
   PlusCircle,
-  Download,
   RefreshCw,
   ExternalLink,
   ChevronRight,
@@ -55,11 +53,6 @@ const DashboardPage = () => {
     await dispatch(fetchDashboardStats());
     setRefreshing(false);
     dispatch(addToast({ type: 'info', message: 'Dashboard analytics refreshed' }));
-  };
-
-  const handleExportCSV = () => {
-    reportApi.downloadCSV();
-    dispatch(addToast({ type: 'success', message: 'Downloading projects CSV report...' }));
   };
 
   if (isLoading && !dashboardData) {
@@ -206,16 +199,6 @@ const DashboardPage = () => {
             className="bg-white/10 hover:bg-white/20 text-white border-white/20 flex-1 sm:flex-initial"
           >
             Refresh
-          </Button>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Download}
-            onClick={handleExportCSV}
-            className="bg-white/10 hover:bg-white/20 text-white border-white/20 flex-1 sm:flex-initial"
-          >
-            Export CSV
           </Button>
 
           {isAdmin && (

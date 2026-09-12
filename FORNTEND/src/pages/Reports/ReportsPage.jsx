@@ -1,15 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { reportApi, projectApi } from '../../api';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useAppDispatch } from '../../app/hooks';
+import { addToast } from '../../features/ui/uiSlice';
+import { projectApi } from '../../api';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
-import { Download, RefreshCw, Calendar, Building2 } from 'lucide-react';
-import { formatCrores, formatDate } from '../../utils/formatters';
+import { Download, RefreshCw, Calendar, Building2, Filter, X } from 'lucide-react';
+import { formatCrores, formatDate, exportToCSV } from '../../utils/formatters';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 
 const ReportsPage = () => {
+  const dispatch = useAppDispatch();
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [clientFilter, setClientFilter] = useState('ALL');
 
   const loadReportData = async () => {
     try {
@@ -26,11 +31,103 @@ const ReportsPage = () => {
     loadReportData();
   }, []);
 
-  const totalBudget = projects.reduce((acc, p) => acc + (Number(p.budget) || 0), 0);
-  const totalUtilized = projects.reduce(
-    (acc, p) => acc + (Number(p.usedbudget || p.utilizedBudget) || 0),
-    0
-  );
+  // Extract unique sponsoring clients or ministries for the dropdown filter
+  const uniqueClients = useMemo(() => {
+    const clients = new Set();
+    projects.forEach((p) => {
+      const name = p.clientId?.name || p.department;
+      if (name && typeof name === 'string' && name.trim()) {
+        clients.add(name.trim());
+      }
+    });
+    return Array.from(clients).sort();
+  }, [projects]);
+
+  // Filter projects by dropdown selections (Status and Client/Ministry)
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const matchesStatus =
+        statusFilter === 'ALL' || (p.status || '').toLowerCase() === statusFilter.toLowerCase();
+      const clientName = (p.clientId?.name || p.department || '').trim();
+      const matchesClient = clientFilter === 'ALL' || clientName === clientFilter;
+      return matchesStatus && matchesClient;
+    });
+  }, [projects, statusFilter, clientFilter]);
+
+  const totalBudget = useMemo(() => {
+    return filteredProjects.reduce((acc, p) => acc + (Number(p.budget) || 0), 0);
+  }, [filteredProjects]);
+
+  const totalUtilized = useMemo(() => {
+    return filteredProjects.reduce(
+      (acc, p) => acc + (Number(p.usedbudget || p.utilizedBudget) || 0),
+      0
+    );
+  }, [filteredProjects]);
+
+  const handleResetFilters = () => {
+    setStatusFilter('ALL');
+    setClientFilter('ALL');
+  };
+
+  const handleExportCSV = () => {
+    if (!filteredProjects || filteredProjects.length === 0) {
+      dispatch(
+        addToast({
+          type: 'warning',
+          message: 'No project audit records match the current filter selection to export.',
+        })
+      );
+      return;
+    }
+
+    const headers = [
+      { label: 'Scheme ID', key: 'id', value: (p) => (p._id || p.id || '').toString().slice(-8) },
+      { label: 'Scheme Name', key: 'name', value: (p) => p.name || 'Untitled' },
+      {
+        label: 'Sponsoring Client / Ministry',
+        key: 'client',
+        value: (p) => p.clientId?.name || p.department || 'Central Ministry',
+      },
+      { label: 'Sanctioned Budget (Cr)', key: 'budget', value: (p) => formatCrores(p.budget) },
+      {
+        label: 'Expenditure Incurred (Cr)',
+        key: 'usedbudget',
+        value: (p) => formatCrores(p.usedbudget || p.utilizedBudget),
+      },
+      {
+        label: 'Budget Burn Rate (%)',
+        key: 'burn',
+        value: (p) => {
+          const b = Number(p.budget || 0);
+          const u = Number(p.usedbudget || p.utilizedBudget || 0);
+          return b > 0 ? `${Math.round((u / b) * 100)}%` : '0%';
+        },
+      },
+      { label: 'Status', key: 'status', value: (p) => (p.status || 'active').toUpperCase() },
+      { label: 'Start Date', key: 'startDate', value: (p) => formatDate(p.startDate) },
+      { label: 'Target Completion Date', key: 'endDate', value: (p) => formatDate(p.endDate) },
+    ];
+
+    const statusTag = statusFilter === 'ALL' ? 'all_statuses' : statusFilter.toLowerCase();
+    const clientTag =
+      clientFilter === 'ALL'
+        ? 'all_sponsors'
+        : clientFilter.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().slice(0, 20);
+    const filename = `analytical_report_${statusTag}_${clientTag}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    const success = exportToCSV(filteredProjects, headers, filename);
+    if (success) {
+      dispatch(
+        addToast({
+          type: 'success',
+          message: `Exported ${filteredProjects.length} filtered project report(s) to CSV`,
+        })
+      );
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
@@ -58,11 +155,79 @@ const ReportsPage = () => {
           <Button
             variant="primary"
             icon={Download}
-            onClick={() => reportApi.downloadCSV()}
+            onClick={handleExportCSV}
             className="flex-1 sm:flex-initial text-xs sm:text-sm"
+            title={`Export ${filteredProjects.length} filtered project report(s) to CSV`}
           >
-            Export Central CSV
+            Export CSV ({filteredProjects.length})
           </Button>
+        </div>
+      </div>
+
+      {/* Dropdown Filters Bar */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-3.5 sm:p-4 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <Filter size={15} className="text-blue-600" />
+          <span>Filter Report Data:</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 flex-1 justify-start sm:justify-end">
+          {/* Status Dropdown */}
+          <div className="flex items-center gap-1.5 min-w-[150px] flex-1 sm:flex-initial">
+            <label
+              htmlFor="report-status-filter"
+              className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap"
+            >
+              Status:
+            </label>
+            <select
+              id="report-status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="active">Active Execution</option>
+              <option value="planning">Planning & Sanction</option>
+              <option value="on-hold">Surveillance / On Hold</option>
+              <option value="completed">Completed & Commissioned</option>
+            </select>
+          </div>
+
+          {/* Sponsoring Client / Ministry Dropdown */}
+          <div className="flex items-center gap-1.5 min-w-[180px] flex-1 sm:flex-initial">
+            <label
+              htmlFor="report-client-filter"
+              className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap"
+            >
+              Sponsor:
+            </label>
+            <select
+              id="report-client-filter"
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              className="w-full text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="ALL">All Sponsoring Entities ({uniqueClients.length})</option>
+              {uniqueClients.map((client) => (
+                <option key={client} value={client}>
+                  {client}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reset Filters button if active */}
+          {(statusFilter !== 'ALL' || clientFilter !== 'ALL') && (
+            <button
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 px-2 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
+              title="Reset all filters"
+            >
+              <X size={13} />
+              Reset
+            </button>
+          )}
         </div>
       </div>
 
@@ -80,10 +245,12 @@ const ReportsPage = () => {
           ) : (
             <>
               <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {projects.length} Schemes
+                {filteredProjects.length} Schemes
               </div>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 block font-medium">
-                Live MongoDB Atlas Data Synchronization
+                {filteredProjects.length !== projects.length
+                  ? `Filtered from ${projects.length} total schemes`
+                  : 'Live MongoDB Atlas Data Synchronization'}
               </span>
             </>
           )}
@@ -173,14 +340,14 @@ const ReportsPage = () => {
                     <td className="px-4 py-3.5"><Skeleton className="h-3 w-16" /></td>
                   </tr>
                 ))
-              ) : projects.length === 0 ? (
+              ) : filteredProjects.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-10 text-slate-400 dark:text-slate-500">
-                    No project records loaded.
+                    No project records match the selected filter criteria.
                   </td>
                 </tr>
               ) : (
-                projects.map((p) => {
+                filteredProjects.map((p) => {
                   const b = Number(p.budget || 0);
                   const u = Number(p.usedbudget || p.utilizedBudget || 0);
                   const burn = b > 0 ? Math.round((u / b) * 100) : 0;
@@ -223,12 +390,12 @@ const ReportsPage = () => {
         <div className="md:hidden flex flex-col gap-3">
           {isLoading ? (
             <SkeletonCardList count={4} />
-          ) : projects.length === 0 ? (
+          ) : filteredProjects.length === 0 ? (
             <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs">
-              No project records loaded.
+              No project records match the selected filter criteria.
             </div>
           ) : (
-            projects.map((p) => {
+            filteredProjects.map((p) => {
               const b = Number(p.budget || 0);
               const u = Number(p.usedbudget || p.utilizedBudget || 0);
               const burn = b > 0 ? Math.round((u / b) * 100) : 0;

@@ -7,8 +7,8 @@ import Badge from '../../components/common/Badge/Badge';
 import Modal from '../../components/common/Modal/Modal';
 import Input from '../../components/common/Input/Input';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
-import { Plus, RefreshCw, Trash2, ShieldAlert, FolderGit2, Calendar } from 'lucide-react';
-import { formatDate } from '../../utils/formatters';
+import { Plus, RefreshCw, Trash2, ShieldAlert, FolderGit2, Calendar, Download } from 'lucide-react';
+import { formatDate, exportToCSV } from '../../utils/formatters';
 
 const RisksPage = () => {
   const dispatch = useAppDispatch();
@@ -100,6 +100,37 @@ const RisksPage = () => {
     return matchesProj && matchesSev;
   });
 
+  const handleExportCSV = () => {
+    if (!filteredRisks || filteredRisks.length === 0) {
+      dispatch(addToast({ type: 'warning', message: 'No risks match the current filter to export.' }));
+      return;
+    }
+
+    const headers = [
+      { label: 'Risk Incident', key: 'title', value: (r) => r.title || 'Untitled' },
+      { label: 'Severity Level', key: 'severity', value: (r) => (r.severity || 'Medium').toUpperCase() },
+      { label: 'Current Status', key: 'status', value: (r) => (r.status || 'open').toUpperCase() },
+      { label: 'Linked Infrastructure Scheme', key: 'project', value: (r) => r.projectId?.name || r.projectId?.title || 'General' },
+      { label: 'Vulnerability Description', key: 'description', value: (r) => r.description || 'N/A' },
+      { label: 'Mitigation Workflow / Action', key: 'mitigation', value: (r) => r.mitigation || r.mitigationPlan || 'Active Surveillance' },
+      { label: 'Date Logged', key: 'date', value: (r) => formatDate(r.createdAt || r.dateIdentified) },
+    ];
+
+    const projName = projectFilter === 'ALL' ? 'all_schemes' : 'filtered_scheme';
+    const sevName = severityFilter === 'ALL' ? 'all_severities' : severityFilter.toLowerCase();
+    const filename = `risk_register_${projName}_${sevName}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    const success = exportToCSV(filteredRisks, headers, filename);
+    if (success) {
+      dispatch(
+        addToast({
+          type: 'success',
+          message: `Exported ${filteredRisks.length} risk incident(s) to CSV`,
+        })
+      );
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       {/* Header */}
@@ -123,6 +154,16 @@ const RisksPage = () => {
             className="flex-1 sm:flex-initial"
           >
             Refresh
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            onClick={handleExportCSV}
+            className="flex-1 sm:flex-initial"
+            title={`Export ${filteredRisks.length} filtered risks to CSV`}
+          >
+            Export CSV ({filteredRisks.length})
           </Button>
           <Button
             variant="primary"
