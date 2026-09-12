@@ -10,6 +10,7 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import { Skeleton } from '../../components/common/Skeleton';
 import { ArrowLeft, Save, ShieldAlert } from 'lucide-react';
+import { formatCrores, parseBudgetToINR } from '../../utils/formatters';
 
 const CreateProjectPage = () => {
   const navigate = useNavigate();
@@ -72,14 +73,32 @@ const CreateProjectPage = () => {
 
     try {
       setIsSubmitting(true);
+      const numBudget = Number(budget || 0);
+      const numUsed = Number(usedbudget || 0);
+
+      if (numUsed > numBudget) {
+        dispatch(
+          addToast({
+            type: 'error',
+            message: `Validation Error: Utilized Outlay (₹${numUsed} Cr) cannot exceed Sanctioned Budget (₹${numBudget} Cr).`,
+          })
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      const parsedBudget = toRawINR(budget);
+      const parsedUsed = toRawINR(usedbudget);
+
       const payload = {
         name: name.trim(),
         description: description.trim(),
         status,
-        startDate: startDate ? new Date(startDate) : null,
+        startDate: startDate ? new Date(startDate) : new Date(),
         endDate: endDate ? new Date(endDate) : null,
-        budget: Number(budget) || 0,
-        usedbudget: Number(usedbudget) || 0,
+        budget: parsedBudget,
+        usedbudget: parsedUsed,
+        utilizedBudget: parsedUsed,
         clientId: clientId || null,
         teamId: teamId || null,
       };
@@ -116,6 +135,7 @@ const CreateProjectPage = () => {
             placeholder="e.g. Western Dedicated Freight Corridor Phase 3"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={isSubmitting}
             required
           />
 
@@ -129,7 +149,8 @@ const CreateProjectPage = () => {
               placeholder="Detailed description of project objectives, scope and deliverables..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+              disabled={isSubmitting}
+              className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
 
@@ -142,7 +163,8 @@ const CreateProjectPage = () => {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 uppercase"
+                disabled={isSubmitting}
+                className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 uppercase disabled:bg-slate-50 disabled:text-slate-400"
               >
                 <option value="planning">PLANNING</option>
                 <option value="active">ACTIVE</option>
@@ -155,34 +177,51 @@ const CreateProjectPage = () => {
             <Input
               label="Start Date"
               type="date"
+              min={new Date().toISOString().split('T')[0]}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              disabled={isSubmitting}
             />
 
             <Input
               label="End Date"
               type="date"
+              min={startDate || new Date().toISOString().split('T')[0]}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              disabled={isSubmitting}
             />
           </div>
 
           {/* Budget & Expenditure */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <Input
-              label="Total Sanctioned Budget (INR)"
+              label="Total Sanctioned Budget (₹ Cr) *"
               type="number"
-              placeholder="Total budget amount"
+              step="any"
+              min="0"
+              placeholder="e.g. 50 or 500"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
+              disabled={isSubmitting}
+              helperText={budget ? `₹${budget} Cr` : undefined}
             />
 
             <Input
-              label="Initial Used Budget (INR)"
+              label="Initial Utilized Outlay (₹ Cr)"
               type="number"
-              placeholder="Initial expenditure"
+              step="any"
+              min="0"
+              placeholder="e.g. 0 or 40"
               value={usedbudget}
               onChange={(e) => setUsedbudget(e.target.value)}
+              disabled={isSubmitting}
+              helperText={usedbudget ? `₹${usedbudget} Cr` : undefined}
+              error={
+                Number(usedbudget) > Number(budget)
+                  ? `Utilized Outlay cannot exceed Sanctioned Budget (Max: ₹${budget || 0} Cr)`
+                  : undefined
+              }
             />
           </div>
 
@@ -198,7 +237,8 @@ const CreateProjectPage = () => {
                 <select
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                  disabled={isSubmitting}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="">-- No Client Selected --</option>
                   {clients.map((c) => (
@@ -220,7 +260,8 @@ const CreateProjectPage = () => {
                 <select
                   value={teamId}
                   onChange={(e) => setTeamId(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                  disabled={isSubmitting}
+                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="">-- No Team Assigned --</option>
                   {teams.map((t) => (
@@ -245,6 +286,7 @@ const CreateProjectPage = () => {
               variant="primary"
               type="submit"
               icon={Save}
+              disabled={isSubmitting}
               isLoading={isSubmitting}
               className="w-full sm:w-auto"
             >

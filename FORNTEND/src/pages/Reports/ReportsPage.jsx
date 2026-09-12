@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../app/hooks';
 import { addToast } from '../../features/ui/uiSlice';
 import { projectApi } from '../../api';
@@ -6,10 +7,11 @@ import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
 import { Download, RefreshCw, Calendar, Building2, Filter, X } from 'lucide-react';
-import { formatCrores, formatDate, exportToCSV } from '../../utils/formatters';
+import { formatCrores, formatDate, exportToExcelReadOnly } from '../../utils/formatters';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 
 const ReportsPage = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +72,7 @@ const ReportsPage = () => {
     setClientFilter('ALL');
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!filteredProjects || filteredProjects.length === 0) {
       dispatch(
         addToast({
@@ -116,14 +118,14 @@ const ReportsPage = () => {
         : clientFilter.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().slice(0, 20);
     const filename = `analytical_report_${statusTag}_${clientTag}_${new Date()
       .toISOString()
-      .slice(0, 10)}.csv`;
+      .slice(0, 10)}.xls`;
 
-    const success = exportToCSV(filteredProjects, headers, filename);
+    const success = exportToExcelReadOnly(filteredProjects, headers, filename, 'Analytical Reports');
     if (success) {
       dispatch(
         addToast({
           type: 'success',
-          message: `Exported ${filteredProjects.length} filtered project report(s) to CSV`,
+          message: `Exported ${filteredProjects.length} filtered project report(s) to Read-Only Excel`,
         })
       );
     }
@@ -155,11 +157,11 @@ const ReportsPage = () => {
           <Button
             variant="primary"
             icon={Download}
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="flex-1 sm:flex-initial text-xs sm:text-sm"
-            title={`Export ${filteredProjects.length} filtered project report(s) to CSV`}
+            title={`Export ${filteredProjects.length} filtered project report(s) to Read-Only Excel`}
           >
-            Export CSV ({filteredProjects.length})
+            Export Excel (Read-Only) ({filteredProjects.length})
           </Button>
         </div>
       </div>
@@ -352,11 +354,15 @@ const ReportsPage = () => {
                   const u = Number(p.usedbudget || p.utilizedBudget || 0);
                   const burn = b > 0 ? Math.round((u / b) * 100) : 0;
                   return (
-                    <tr key={p._id || p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40 transition-colors">
+                    <tr
+                      key={p._id || p.id}
+                      onClick={() => navigate(`/projects/${p._id || p.id}`)}
+                      className="hover:bg-blue-50/40 dark:hover:bg-slate-700/50 cursor-pointer transition-colors group"
+                    >
                       <td className="px-4 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400">
                         {(p._id || p.id).slice(-8)}
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white max-w-xs truncate">
+                      <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 max-w-xs truncate transition-colors">
                         {p.name}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-300 max-w-[140px] truncate">
@@ -403,14 +409,15 @@ const ReportsPage = () => {
               return (
                 <div
                   key={p._id || p.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-2xs flex flex-col gap-2.5"
+                  onClick={() => navigate(`/projects/${p._id || p.id}`)}
+                  className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-2xs flex flex-col gap-2.5 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-all group"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 block mb-0.5">
                         #{(p._id || p.id).slice(-8)}
                       </span>
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-snug break-words">
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-snug break-words transition-colors">
                         {p.name}
                       </h4>
                     </div>

@@ -44,7 +44,13 @@ export const dashboardService = {
     const tasks = await taskDao.findAll();
     const risks = await riskDao.findAll();
 
-    const criticalRisks = risks.filter((r) => r.severity === 'critical' || r.severity === 'high');
+    const criticalRisks = risks.filter(
+      (r) =>
+        (r.severity === 'critical' || r.severity === 'high') &&
+        r.status !== 'closed' &&
+        r.status !== 'mitigated' &&
+        r.status !== 'resolved'
+    );
 
     return {
       kpis: {

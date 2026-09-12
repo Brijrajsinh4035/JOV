@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { riskApi, projectApi } from '../../api';
 import { useAppDispatch } from '../../app/hooks';
 import { addToast } from '../../features/ui/uiSlice';
@@ -8,13 +9,16 @@ import Modal from '../../components/common/Modal/Modal';
 import Input from '../../components/common/Input/Input';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 import { Plus, RefreshCw, Trash2, ShieldAlert, FolderGit2, Calendar, Download } from 'lucide-react';
-import { formatDate, exportToCSV } from '../../utils/formatters';
+import { formatCrores, formatDate, exportToExcelReadOnly } from '../../utils/formatters';
 
 const RisksPage = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [risks, setRisks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [updatingRiskId, setUpdatingRiskId] = useState(null);
 
   // Filters & Modals
   const [projectFilter, setProjectFilter] = useState('ALL');
@@ -35,9 +39,6 @@ const RisksPage = () => {
       setRisks(Array.isArray(rRes) ? rRes : rRes?.data || []);
       const projs = Array.isArray(pRes) ? pRes : pRes?.data || [];
       setProjects(projs);
-      if (projs.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projs[0]._id || projs[0].id);
-      }
     } catch (err) {
       dispatch(addToast({ type: 'error', message: err.message || 'Failed loading risks' }));
     } finally {
@@ -49,11 +50,24 @@ const RisksPage = () => {
     loadData();
   }, []);
 
+  const handleOpenCreateModal = () => {
+    setRiskTitle('');
+    setRiskDesc('');
+    setRiskSeverity('medium');
+    setRiskStatus('open');
+    setSelectedProjectId('');
+    setIsModalOpen(true);
+  };
+
   const handleCreateRisk = async (e) => {
     e.preventDefault();
-    if (!riskTitle.trim() || !selectedProjectId) return;
+    if (!riskTitle.trim() || !selectedProjectId) {
+      dispatch(addToast({ type: 'error', message: 'Scheme and risk title are required' }));
+      return;
+    }
 
     try {
+      setIsSubmitting(true);
       await riskApi.create({
         projectId: selectedProjectId,
         title: riskTitle.trim(),
@@ -65,19 +79,25 @@ const RisksPage = () => {
       setIsModalOpen(false);
       setRiskTitle('');
       setRiskDesc('');
+      setSelectedProjectId('');
       loadData();
     } catch (err) {
       dispatch(addToast({ type: 'error', message: err.message || 'Failed to create risk' }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleStatusChange = async (riskId, nextStatus) => {
     try {
+      setUpdatingRiskId(riskId);
       await riskApi.update(riskId, { status: nextStatus });
-      dispatch(addToast({ type: 'info', message: `Risk marked as ${nextStatus}` }));
+      dispatch(addToast({ type: 'info', message: `Risk status updated to ${nextStatus}` }));
       loadData();
     } catch (err) {
       dispatch(addToast({ type: 'error', message: err.message || 'Failed updating risk status' }));
+    } finally {
+      setUpdatingRiskId(null);
     }
   };
 
@@ -100,7 +120,7 @@ const RisksPage = () => {
     return matchesProj && matchesSev;
   });
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!filteredRisks || filteredRisks.length === 0) {
       dispatch(addToast({ type: 'warning', message: 'No risks match the current filter to export.' }));
       return;
@@ -118,14 +138,14 @@ const RisksPage = () => {
 
     const projName = projectFilter === 'ALL' ? 'all_schemes' : 'filtered_scheme';
     const sevName = severityFilter === 'ALL' ? 'all_severities' : severityFilter.toLowerCase();
-    const filename = `risk_register_${projName}_${sevName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `risk_register_${projName}_${sevName}_${new Date().toISOString().slice(0, 10)}.xls`;
 
-    const success = exportToCSV(filteredRisks, headers, filename);
+    const success = exportToExcelReadOnly(filteredRisks, headers, filename, 'Risk Register');
     if (success) {
       dispatch(
         addToast({
           type: 'success',
-          message: `Exported ${filteredRisks.length} risk incident(s) to CSV`,
+          message: `Exported ${filteredRisks.length} risk incident(s) to Read-Only Excel`,
         })
       );
     }
@@ -159,17 +179,17 @@ const RisksPage = () => {
             variant="secondary"
             size="sm"
             icon={Download}
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="flex-1 sm:flex-initial"
-            title={`Export ${filteredRisks.length} filtered risks to CSV`}
+            title={`Export ${filteredRisks.length} filtered risks to Read-Only Excel`}
           >
-            Export CSV ({filteredRisks.length})
+            Export Excel (Read-Only) ({filteredRisks.length})
           </Button>
           <Button
             variant="primary"
             size="sm"
             icon={Plus}
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenCreateModal}
             className="flex-1 sm:flex-initial"
           >
             Log New Risk
@@ -252,141 +272,299 @@ const RisksPage = () => {
               </tr>
             ) : (
               filteredRisks.map((r) => {
-                const rId = r._id || r.id;
-                const projName = r.projectId?.name || 'Assigned Project';
-                return (
-                  <tr key={rId} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3.5 max-w-xs">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-900 break-words">{r.title}</span>
-                        {r.description && (
-                          <span className="text-xs text-slate-400 truncate">{r.description}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-xs text-slate-600 max-w-[160px] truncate">{projName}</td>
-                    <td className="px-4 py-3.5">
-                      <Badge status={r.severity} />
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <Badge status={r.status} />
-                    </td>
-                    <td className="px-4 py-3.5 text-xs text-slate-500">{formatDate(r.createdAt)}</td>
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex gap-1.5 justify-end">
-                        {r.status === 'open' && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleStatusChange(rId, 'mitigated')}
-                            className="text-xs"
+              const rId = r._id || r.id;
+              const projId =
+                r.projectId?._id ||
+                r.projectId?.id ||
+                (typeof r.projectId === 'string' ? r.projectId : null);
+              const projName = r.projectId?.name || 'Assigned Project';
+
+              return (
+                <tr
+                  key={rId}
+                  onClick={() => {
+                    if (projId) navigate(`/projects/${projId}`);
+                  }}
+                  className={`hover:bg-blue-50/40 dark:hover:bg-slate-700/40 transition-colors group ${
+                    projId ? 'cursor-pointer' : ''
+                  }`}
+                >
+                  <td className="px-4 py-3.5 max-w-xs">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors break-words">
+                        {r.title}
+                      </span>
+                      {r.description && (
+                        <span className="text-xs text-slate-400 truncate">{r.description}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-xs max-w-[170px] truncate">
+                    {projId ? (
+                      <span
+                        className="font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 inline-flex items-center gap-1.5 transition-colors"
+                        title={`View scheme details for ${projName}`}
+                      >
+                        <FolderGit2 size={13} className="shrink-0 text-blue-500/80" />
+                        <span className="truncate">{projName}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-600 dark:text-slate-400">{projName}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <Badge status={r.severity} />
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <Badge status={r.status} />
+                  </td>
+                  <td className="px-4 py-3.5 text-xs text-slate-500">{formatDate(r.createdAt)}</td>
+                  <td className="px-4 py-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {r.status === 'open' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={updatingRiskId === rId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(rId, 'mitigated');
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Mark as Mitigated"
                           >
-                            Mark Mitigated
-                          </Button>
-                        )}
-                        {r.status === 'mitigated' && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleStatusChange(rId, 'closed')}
-                            className="text-xs"
+                            Mitigate
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingRiskId === rId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(rId, 'closed');
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Mark as Closed"
                           >
                             Close
-                          </Button>
-                        )}
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          icon={Trash2}
-                          onClick={() => handleDeleteRisk(rId)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                          </button>
+                        </>
+                      )}
+                      {r.status === 'mitigated' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={updatingRiskId === rId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(rId, 'closed');
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Mark as Closed"
+                          >
+                            Close
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingRiskId === rId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(rId, 'open');
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Reopen Risk"
+                          >
+                            Reopen
+                          </button>
+                        </>
+                      )}
+                      {r.status === 'closed' && (
+                        <button
+                          type="button"
+                          disabled={updatingRiskId === rId}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(rId, 'open');
+                          }}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
+                          title="Reopen Risk"
+                        >
+                          Reopen
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteRisk(rId);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Risk Record"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
 
-      {/* MOBILE RISK CARDS VIEW (displayed on < md) */}
-      <div className="md:hidden flex flex-col gap-3">
-        {isLoading ? (
-          <SkeletonCardList count={4} />
-        ) : filteredRisks.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 border border-slate-200 text-center text-slate-400 text-xs">
-            No risks recorded under the selected criteria.
-          </div>
-        ) : (
-          filteredRisks.map((r) => {
-            const rId = r._id || r.id;
-            const projName = r.projectId?.name || 'Assigned Project';
+    {/* MOBILE: High-Fidelity Responsive Risk Cards (displayed on < md) */}
+    <div className="md:hidden flex flex-col gap-3">
+      {isLoading ? (
+        <SkeletonCardList count={4} />
+      ) : filteredRisks.length === 0 ? (
+        <div className="text-center py-10 text-slate-400 text-xs">
+          No risks recorded under the selected criteria.
+        </div>
+      ) : (
+        filteredRisks.map((r) => {
+          const rId = r._id || r.id;
+          const projId =
+            r.projectId?._id ||
+            r.projectId?.id ||
+            (typeof r.projectId === 'string' ? r.projectId : null);
+          const projName = r.projectId?.name || 'Assigned Project';
 
-            return (
-              <div
-                key={rId}
-                className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2.5"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
+          return (
+            <div
+              key={rId}
+              onClick={() => {
+                if (projId) navigate(`/projects/${projId}`);
+              }}
+              className={`bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2.5 transition-all group ${
+                projId ? 'cursor-pointer hover:border-blue-300' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {projId ? (
+                    <span
+                      className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900/40 px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1 w-fit mb-1 truncate max-w-[220px]"
+                      title={`View scheme details for ${projName}`}
+                    >
+                      <FolderGit2 size={11} className="shrink-0" />
+                      <span className="truncate">{projName}</span>
+                    </span>
+                  ) : (
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider block w-fit mb-1 truncate max-w-[200px]">
                       {projName}
                     </span>
-                    <h4 className="font-bold text-sm text-slate-900 leading-snug break-words">
-                      {r.title}
-                    </h4>
-                    {r.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">
-                        {r.description}
-                      </p>
-                    )}
-                  </div>
-                  <Badge status={r.severity} className="shrink-0" />
+                  )}
+                  <h4 className="font-bold text-sm text-slate-900 group-hover:text-blue-700 transition-colors leading-snug break-words">
+                    {r.title}
+                  </h4>
+                  {r.description && (
+                    <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">
+                      {r.description}
+                    </p>
+                  )}
+                </div>
+                <Badge status={r.severity} className="shrink-0" />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Badge status={r.status} />
+                  <span className="text-[11px] text-slate-400">
+                    {formatDate(r.createdAt)}
+                  </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Badge status={r.status} />
-                    <span className="text-[11px] text-slate-400">
-                      {formatDate(r.createdAt)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {r.status === 'open' && (
+                <div className="flex items-center gap-1.5">
+                  {r.status === 'open' && (
+                    <>
                       <button
-                        onClick={() => handleStatusChange(rId, 'mitigated')}
-                        className="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer"
+                        type="button"
+                        disabled={updatingRiskId === rId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(rId, 'mitigated');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition-colors cursor-pointer border border-amber-200"
                       >
                         Mitigate
                       </button>
-                    )}
-                    {r.status === 'mitigated' && (
                       <button
-                        onClick={() => handleStatusChange(rId, 'closed')}
-                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer"
+                        type="button"
+                        disabled={updatingRiskId === rId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(rId, 'closed');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer border border-emerald-200"
                       >
                         Close
                       </button>
-                    )}
+                    </>
+                  )}
+                  {r.status === 'mitigated' && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={updatingRiskId === rId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(rId, 'closed');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors cursor-pointer border border-emerald-200"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        disabled={updatingRiskId === rId}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(rId, 'open');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
+                      >
+                        Reopen
+                      </button>
+                    </>
+                  )}
+                  {r.status === 'closed' && (
                     <button
-                      onClick={() => handleDeleteRisk(rId)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Delete Risk"
+                      type="button"
+                      disabled={updatingRiskId === rId}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStatusChange(rId, 'open');
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
                     >
-                      <Trash2 size={14} />
+                      Reopen
                     </button>
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteRisk(rId);
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
+            </div>
             );
           })
         )}
       </div>
 
       {/* CREATE RISK MODAL */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log New Project Risk">
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
+        title="Log New Project Risk"
+      >
         <form onSubmit={handleCreateRisk} className="flex flex-col gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -397,7 +575,9 @@ const RisksPage = () => {
               onChange={(e) => setSelectedProjectId(e.target.value)}
               className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
               required
+              disabled={isSubmitting}
             >
+              <option value="">-- Select Sponsoring Infrastructure Scheme --</option>
               {projects.map((p) => (
                 <option key={p._id || p.id} value={p._id || p.id}>
                   {p.name}
@@ -407,56 +587,113 @@ const RisksPage = () => {
           </div>
 
           <Input
-            label="Risk Title *"
+            label="Risk Incident Title *"
             placeholder="e.g. Land compensation court stay in segment B"
             value={riskTitle}
             onChange={(e) => setRiskTitle(e.target.value)}
             required
+            disabled={isSubmitting}
           />
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Incident / Risk Description
+              Incident / Vulnerability Description
             </label>
             <textarea
               rows={3}
               placeholder="Outline potential impact on timelines and costs..."
               value={riskDesc}
               onChange={(e) => setRiskDesc(e.target.value)}
+              disabled={isSubmitting}
               className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Severity
-              </label>
-              <select
-                value={riskSeverity}
-                onChange={(e) => setRiskSeverity(e.target.value)}
-                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 uppercase"
-              >
-                <option value="low">LOW</option>
-                <option value="medium">MEDIUM</option>
-                <option value="high">HIGH</option>
-                <option value="critical">CRITICAL</option>
-              </select>
+          {/* BUTTON-BASED SEVERITY SELECTOR */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
+              Severity Level *
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                {
+                  id: 'low',
+                  label: 'Low',
+                  activeClass: 'bg-blue-600 text-white border-blue-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+                {
+                  id: 'medium',
+                  label: 'Medium',
+                  activeClass: 'bg-yellow-500 text-slate-950 font-bold border-yellow-500 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+                {
+                  id: 'high',
+                  label: 'High',
+                  activeClass: 'bg-orange-600 text-white border-orange-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+                {
+                  id: 'critical',
+                  label: 'Critical',
+                  activeClass: 'bg-rose-600 text-white border-rose-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+              ].map((sev) => (
+                <button
+                  key={sev.id}
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setRiskSeverity(sev.id)}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center ${
+                    riskSeverity === sev.id ? sev.activeClass : sev.idleClass
+                  }`}
+                >
+                  {sev.label}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Initial Status
-              </label>
-              <select
-                value={riskStatus}
-                onChange={(e) => setRiskStatus(e.target.value)}
-                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 uppercase"
-              >
-                <option value="open">OPEN</option>
-                <option value="mitigated">MITIGATED</option>
-                <option value="closed">CLOSED</option>
-              </select>
+          {/* BUTTON-BASED STATUS SELECTOR */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
+              Initial Operational Status *
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  id: 'open',
+                  label: 'Open',
+                  activeClass: 'bg-blue-600 text-white border-blue-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+                {
+                  id: 'mitigated',
+                  label: 'Mitigated',
+                  activeClass: 'bg-amber-600 text-white border-amber-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+                {
+                  id: 'closed',
+                  label: 'Closed',
+                  activeClass: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
+                  idleClass: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+                },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setRiskStatus(st.id)}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer text-center ${
+                    riskStatus === st.id ? st.activeClass : st.idleClass
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -464,6 +701,7 @@ const RisksPage = () => {
             <Button
               variant="ghost"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="w-full sm:w-auto"
             >
               Cancel
@@ -471,6 +709,8 @@ const RisksPage = () => {
             <Button
               variant="danger"
               type="submit"
+              disabled={isSubmitting || !riskTitle.trim() || !selectedProjectId}
+              isLoading={isSubmitting}
               className="w-full sm:w-auto"
             >
               Log Risk Incident

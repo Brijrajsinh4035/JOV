@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   fetchDashboardStats,
@@ -20,7 +20,6 @@ import {
   IndianRupee,
   TrendingUp,
   PlusCircle,
-  RefreshCw,
   ExternalLink,
   ChevronRight,
   Calendar,
@@ -114,7 +113,9 @@ const DashboardPage = () => {
   };
 
   const statusDistribution = dashboardData?.statusDistribution || [];
-  const criticalRisks = dashboardData?.criticalRisks || [];
+  const criticalRisks = (dashboardData?.criticalRisks || []).filter(
+    (r) => r.status !== 'closed' && r.status !== 'mitigated' && r.status !== 'resolved'
+  );
   const recentProjects = dashboardData?.recentProjects || [];
 
   const kpiCards = [
@@ -190,17 +191,6 @@ const DashboardPage = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:shrink-0 w-full sm:w-auto">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={RefreshCw}
-            isLoading={refreshing}
-            onClick={handleRefresh}
-            className="bg-white/10 hover:bg-white/20 text-white border-white/20 flex-1 sm:flex-initial"
-          >
-            Refresh
-          </Button>
-
           {isAdmin && (
             <Button
               variant="primary"
@@ -438,8 +428,12 @@ const DashboardPage = () => {
               {recentProjects.map((p) => {
                 const pid = p._id || p.id;
                 return (
-                  <tr key={pid} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-slate-900 max-w-xs truncate">
+                  <tr
+                    key={pid}
+                    onClick={() => navigate(`/projects/${pid}`)}
+                    className="hover:bg-blue-50/40 dark:hover:bg-slate-700/40 cursor-pointer transition-colors group"
+                  >
+                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors max-w-xs truncate">
                       {p.name}
                     </td>
                     <td className="px-4 py-3">
@@ -452,7 +446,14 @@ const DashboardPage = () => {
                     <td className="px-4 py-3 text-xs text-slate-500">{formatDate(p.startDate)}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{formatDate(p.endDate)}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => navigate(`/projects/${pid}`)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${pid}`);
+                        }}
+                      >
                         View
                       </Button>
                     </td>
@@ -474,10 +475,10 @@ const DashboardPage = () => {
                 <div
                   key={pid}
                   onClick={() => navigate(`/projects/${pid}`)}
-                  className="p-3.5 bg-slate-50 hover:bg-blue-50/40 rounded-xl border border-slate-200 transition-all flex flex-col gap-2.5 cursor-pointer shadow-2xs"
+                  className="p-3.5 bg-slate-50 hover:bg-blue-50/40 dark:bg-slate-800 dark:hover:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex flex-col gap-2.5 cursor-pointer shadow-2xs group"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-bold text-sm text-slate-900 leading-snug break-words">
+                    <h4 className="font-bold text-sm leading-snug break-words text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
                       {p.name}
                     </h4>
                     <Badge status={p.status} className="shrink-0" />

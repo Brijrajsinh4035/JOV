@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { taskApi, projectApi } from '../../api';
-import { useAppDispatch } from '../../app/hooks';
+import { useAppDispatch, useAppSelector } from '../../app/hooks';
+import { selectCurrentUser } from '../../features/auth/authSlice';
 import { addToast } from '../../features/ui/uiSlice';
 import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
@@ -31,7 +33,7 @@ import {
   CheckCircle,
   TrendingUp,
 } from 'lucide-react';
-import { formatDate, getInitials, exportToCSV } from '../../utils/formatters';
+import { formatDate, getInitials, exportToExcelReadOnly } from '../../utils/formatters';
 
 const KANBAN_COLUMNS = [
   {
@@ -95,25 +97,30 @@ const PRIORITY_BORDER_MAP = {
 
 const TasksPage = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const currentUser = useAppSelector(selectCurrentUser);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // State
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // View switch: 'kanban' | 'list'
-  const [viewMode, setViewMode] = useState('kanban');
+  // View Mode
+  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'list'
 
-  // Filters & Search
+  // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [projectFilter, setProjectFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
 
-  // Drag & Drop State
+  // Drag-and-Drop state
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverColumnId, setDragOverColumnId] = useState(null);
 
-  // Modal State
+  // Create Task Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -122,16 +129,14 @@ const TasksPage = () => {
   const [taskStatus, setTaskStatus] = useState('todo');
   const [taskDueDate, setTaskDueDate] = useState('');
 
+  // Fetch all tasks and projects
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [tRes, pRes] = await Promise.all([taskApi.getAll(), projectApi.getAll()]);
-      setTasks(Array.isArray(tRes) ? tRes : tRes?.data || []);
-      const projs = Array.isArray(pRes) ? pRes : pRes?.data || [];
+      const [taskRes, projRes] = await Promise.all([taskApi.getAll(), projectApi.getAll()]);
+      setTasks(Array.isArray(taskRes) ? taskRes : taskRes?.data || []);
+      const projs = Array.isArray(projRes) ? projRes : projRes?.data || [];
       setProjects(projs);
-      if (projs.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projs[0]._id || projs[0].id);
-      }
     } catch (err) {
       dispatch(addToast({ type: 'error', message: err.message || 'Failed loading tasks' }));
     } finally {
@@ -150,9 +155,7 @@ const TasksPage = () => {
     setTaskDesc('');
     setTaskPriority('medium');
     setTaskDueDate('');
-    if (projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0]._id || projects[0].id);
-    }
+    setSelectedProjectId(''); // Clean reset: never auto-select last project!
     setIsModalOpen(true);
   };
 
@@ -321,7 +324,7 @@ const TasksPage = () => {
     return due < today;
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!filteredTasks || filteredTasks.length === 0) {
       dispatch(
         addToast({
@@ -351,14 +354,14 @@ const TasksPage = () => {
     const prioTag = priorityFilter === 'ALL' ? 'all_priorities' : priorityFilter.toLowerCase();
     const filename = `task_tracker_${projTag}_${prioTag}_${new Date()
       .toISOString()
-      .slice(0, 10)}.csv`;
+      .slice(0, 10)}.xls`;
 
-    const success = exportToCSV(filteredTasks, headers, filename);
+    const success = exportToExcelReadOnly(filteredTasks, headers, filename, 'Task Tracker');
     if (success) {
       dispatch(
         addToast({
           type: 'success',
-          message: `Exported ${filteredTasks.length} task(s) to CSV`,
+          message: `Exported ${filteredTasks.length} task(s) to Read-Only Excel`,
         })
       );
     }
@@ -428,10 +431,10 @@ const TasksPage = () => {
             variant="secondary"
             size="sm"
             icon={Download}
-            onClick={handleExportCSV}
-            title={`Export ${filteredTasks.length} filtered tasks to CSV`}
+            onClick={handleExportExcel}
+            title={`Export ${filteredTasks.length} filtered tasks to Read-Only Excel`}
           >
-            Export CSV ({filteredTasks.length})
+            Export Excel (Read-Only) ({filteredTasks.length})
           </Button>
 
           <Button
@@ -689,7 +692,7 @@ const TasksPage = () => {
                       </span>
                       <button
                         onClick={() => handleOpenCreateModal(col.id)}
-                        className="mt-2 text-[11px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                        className="mt-2 text-[11px] text-blue-600 hover:text-blue-800 font-semibold transition-colors cursor-pointer"
                       >
                         + Add task
                       </button>
@@ -722,12 +725,24 @@ const TasksPage = () => {
                               >
                                 <GripVertical size={14} />
                               </span>
-                              <span
-                                title={projName}
-                                className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[120px] uppercase tracking-wider"
-                              >
-                                {projName}
-                              </span>
+                              {task.projectId ? (
+                                <Link
+                                  to={`/projects/${task.projectId._id || task.projectId.id || task.projectId}`}
+                                  title={`View scheme details for ${projName}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[10px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/40 px-2 py-0.5 rounded-md truncate max-w-[130px] uppercase tracking-wider inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <FolderGit2 size={10} className="shrink-0 text-blue-500/80" />
+                                  <span className="truncate">{projName}</span>
+                                </Link>
+                              ) : (
+                                <span
+                                  title={projName}
+                                  className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[120px] uppercase tracking-wider"
+                                >
+                                  {projName}
+                                </span>
+                              )}
                             </div>
                             <Badge status={task.priority} />
                           </div>
@@ -874,9 +889,21 @@ const TasksPage = () => {
                       const overdue = isOverdue(task);
 
                       return (
-                        <tr key={taskId} className="hover:bg-slate-50/60 transition-colors">
+                        <tr
+                          key={taskId}
+                          onClick={() => {
+                            const pId =
+                              task.projectId?._id ||
+                              task.projectId?.id ||
+                              (typeof task.projectId === 'string' ? task.projectId : null);
+                            if (pId) navigate(`/projects/${pId}`);
+                          }}
+                          className={`hover:bg-blue-50/40 transition-colors group ${
+                            task.projectId ? 'cursor-pointer' : ''
+                          }`}
+                        >
                           <td className="py-3 px-4">
-                            <div className="font-bold text-slate-900 text-sm">{task.title}</div>
+                            <div className="font-bold text-slate-900 text-sm group-hover:text-blue-700 transition-colors">{task.title}</div>
                             {task.description && (
                               <div className="text-slate-500 text-xs line-clamp-1 mt-0.5">
                                 {task.description}
@@ -884,11 +911,21 @@ const TasksPage = () => {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-[11px]">
-                              {projName}
-                            </span>
+                            {task.projectId ? (
+                              <span
+                                className="font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/40 px-2.5 py-1 rounded-md text-[11px] inline-flex items-center gap-1.5 transition-colors max-w-[180px] truncate"
+                                title={`View scheme details for ${projName}`}
+                              >
+                                <FolderGit2 size={12} className="shrink-0 text-blue-500/80" />
+                                <span className="truncate">{projName}</span>
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded-md text-[11px]">
+                                {projName}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                             <select
                               value={task.status}
                               onChange={(e) => handleMoveStatus(task, e.target.value)}
@@ -930,7 +967,10 @@ const TasksPage = () => {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button
-                              onClick={() => handleDeleteTask(taskId)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTask(taskId);
+                              }}
                               className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                               title="Delete Task"
                             >
@@ -961,14 +1001,33 @@ const TasksPage = () => {
                 return (
                   <div
                     key={taskId}
-                    className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2.5"
+                    onClick={() => {
+                      const pId =
+                        task.projectId?._id ||
+                        task.projectId?.id ||
+                        (typeof task.projectId === 'string' ? task.projectId : null);
+                      if (pId) navigate(`/projects/${pId}`);
+                    }}
+                    className={`bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2.5 transition-all group ${
+                      task.projectId ? 'cursor-pointer hover:border-blue-300' : ''
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider block w-fit mb-1">
-                          {projName}
-                        </span>
-                        <h4 className="font-bold text-sm text-slate-900 leading-snug break-words">
+                        {task.projectId ? (
+                          <span
+                            className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900/40 px-2 py-0.5 rounded-md uppercase tracking-wider inline-flex items-center gap-1 w-fit mb-1 transition-colors"
+                            title={`View scheme details for ${projName}`}
+                          >
+                            <FolderGit2 size={11} className="shrink-0" />
+                            <span className="truncate max-w-[200px]">{projName}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider block w-fit mb-1">
+                            {projName}
+                          </span>
+                        )}
+                        <h4 className="font-bold text-sm text-slate-900 group-hover:text-blue-700 transition-colors leading-snug break-words">
                           {task.title}
                         </h4>
                         {task.description && (
@@ -1031,9 +1090,11 @@ const TasksPage = () => {
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+              disabled={isSubmitting}
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
               required
             >
+              <option value="" disabled>-- Select Assigned Project Scheme --</option>
               {projects.map((p) => (
                 <option key={p._id || p.id} value={p._id || p.id}>
                   {p.name}
@@ -1047,6 +1108,7 @@ const TasksPage = () => {
             placeholder="e.g., Conduct Environmental Clearance Inspection"
             value={taskTitle}
             onChange={(e) => setTaskTitle(e.target.value)}
+            disabled={isSubmitting}
             required
           />
 
@@ -1059,7 +1121,8 @@ const TasksPage = () => {
               placeholder="Outline specific objectives, deliverables, or dependencies..."
               value={taskDesc}
               onChange={(e) => setTaskDesc(e.target.value)}
-              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+              disabled={isSubmitting}
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
 
@@ -1071,7 +1134,8 @@ const TasksPage = () => {
               <select
                 value={taskStatus}
                 onChange={(e) => setTaskStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 capitalize"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 capitalize disabled:bg-slate-50 disabled:text-slate-400"
               >
                 <option value="todo">To Do</option>
                 <option value="in-progress">In Progress</option>
@@ -1088,7 +1152,8 @@ const TasksPage = () => {
               <select
                 value={taskPriority}
                 onChange={(e) => setTaskPriority(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 capitalize"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 capitalize disabled:bg-slate-50 disabled:text-slate-400"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -1103,9 +1168,11 @@ const TasksPage = () => {
               </label>
               <input
                 type="date"
+                min={todayStr}
                 value={taskDueDate}
                 onChange={(e) => setTaskDueDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
           </div>
@@ -1114,6 +1181,7 @@ const TasksPage = () => {
             <Button
               variant="ghost"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="w-full sm:w-auto"
             >
               Cancel
@@ -1122,6 +1190,7 @@ const TasksPage = () => {
               variant="primary"
               type="submit"
               isLoading={isSubmitting}
+              disabled={isSubmitting || !taskTitle.trim() || !selectedProjectId}
               className="w-full sm:w-auto"
             >
               Create Task

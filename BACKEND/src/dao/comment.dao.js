@@ -3,23 +3,23 @@ import Comment from '../models/comment.model.js';
 export const commentDao = {
   findByRef: async (refType, refId) => {
     return await Comment.find({ refType, refId })
-      .populate('authorId', 'username email role')
+      .populate('authorId', 'name username email role designation department')
       .sort({ createdAt: -1 })
       .lean();
   },
 
   findById: async (id) => {
-    return await Comment.findById(id).populate('authorId', 'username email role').lean();
+    return await Comment.findById(id).populate('authorId', 'name username email role designation department').lean();
   },
 
   create: async (data) => {
     const created = await Comment.create({ ...data, createdAt: data.createdAt || new Date() });
-    return (await Comment.findById(created._id).populate('authorId', 'username email role')).toObject();
+    return (await Comment.findById(created._id).populate('authorId', 'name username email role designation department')).toObject();
   },
 
   update: async (id, updateData) => {
     return await Comment.findByIdAndUpdate(id, updateData, { new: true })
-      .populate('authorId', 'username email role')
+      .populate('authorId', 'name username email role designation department')
       .lean();
   },
 

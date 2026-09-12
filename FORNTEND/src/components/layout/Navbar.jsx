@@ -56,23 +56,6 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Center: Global Search Bar (Hidden on mobile < md, toggled with search button) */}
-      <div className="hidden md:flex flex-1 max-w-md mx-2 sm:mx-4">
-        <div className="relative w-full">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-          />
-          <input
-            type="text"
-            placeholder="Search projects, schemes, or departments..."
-            value={search}
-            onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-            className="w-full pl-9 pr-4 py-1.5 bg-slate-100/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all"
-          />
-        </div>
-      </div>
-
       {/* Mobile Search Overlay Bar */}
       {mobileSearchOpen && (
         <div className="md:hidden absolute inset-x-0 top-0 h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3.5 flex items-center gap-2 z-30 shadow-md animate-in fade-in slide-in-from-top-2 duration-150">

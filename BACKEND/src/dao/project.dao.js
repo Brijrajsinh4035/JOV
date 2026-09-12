@@ -129,9 +129,15 @@ export const projectDao = {
   },
 
   update: async (id, updateData) => {
+    const dataToUpdate = { ...updateData };
+    if (updateData.usedbudget !== undefined || updateData.utilizedBudget !== undefined) {
+      const val = Number(updateData.usedbudget ?? updateData.utilizedBudget ?? 0);
+      dataToUpdate.usedbudget = val;
+      dataToUpdate.utilizedBudget = val;
+    }
     const p = await Project.findByIdAndUpdate(
       id,
-      { ...updateData, updatedAt: new Date() },
+      { ...dataToUpdate, updatedAt: new Date() },
       { new: true }
     )
       .populate('ownerId', 'username name email role')

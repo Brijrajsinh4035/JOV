@@ -28,6 +28,10 @@ export const projectService = {
       );
     }
 
+    if (Number(projectData.usedbudget || 0) > Number(projectData.budget || 0) && Number(projectData.budget || 0) > 0) {
+      throw new ApiError(400, 'Utilized Outlay cannot exceed Sanctioned Budget.');
+    }
+
     const projectPayload = {
       ...projectData,
       ownerId: userId || projectData.ownerId,
@@ -55,6 +59,16 @@ export const projectService = {
     const existing = await projectDao.findById(id);
     if (!existing) {
       throw new ApiError(404, `Project with ID '${id}' not found`);
+    }
+
+    const targetBudget = updateData.budget !== undefined ? Number(updateData.budget) : Number(existing.budget || 0);
+    const targetUsed = updateData.usedbudget !== undefined ? Number(updateData.usedbudget) : (updateData.utilizedBudget !== undefined ? Number(updateData.utilizedBudget) : Number(existing.usedbudget || existing.utilizedBudget || 0));
+
+    if (targetUsed > targetBudget && targetBudget > 0) {
+      throw new ApiError(
+        400,
+        `Utilized Outlay cannot exceed Sanctioned Budget.`
+      );
     }
 
     const validStatuses = ['planning', 'active', 'on-hold', 'completed', 'cancelled'];

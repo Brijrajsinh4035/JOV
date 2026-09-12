@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
   fetchProjects,
@@ -14,9 +14,11 @@ import {
 } from '../../features/projects/projectSlice';
 import { selectIsAdmin } from '../../features/auth/authSlice';
 import { addToast } from '../../features/ui/uiSlice';
+import { projectApi } from '../../api';
 import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
 import Modal from '../../components/common/Modal/Modal';
+import Input from '../../components/common/Input/Input';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 import {
   Search,
@@ -32,7 +34,14 @@ import {
   X,
   Download,
 } from 'lucide-react';
-import { formatCrores, formatDate, exportToCSV } from '../../utils/formatters';
+import {
+  formatCrores,
+  formatDate,
+  exportToExcelReadOnly,
+  calculateProgress,
+  toCrores,
+  toRawINR,
+} from '../../utils/formatters';
 
 const statusOptions = ['ALL', 'planning', 'active', 'on-hold', 'completed', 'cancelled'];
 
@@ -45,40 +54,90 @@ const ProjectsPage = () => {
   const filters = useAppSelector(selectProjectsFilters);
   const isAdmin = useAppSelector(selectIsAdmin);
 
-  // Status update modal state
-  const [selectedProjectForStatus, setSelectedProjectForStatus] = useState(null);
-  const [newStatus, setNewStatus] = useState('active');
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Edit Project Details modal state
+  const [selectedProjectToEdit, setSelectedProjectToEdit] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editBudget, setEditBudget] = useState('');
+  const [editUsedBudget, setEditUsedBudget] = useState('');
+  const [editPriority, setEditPriority] = useState('medium');
+  const [editStatus, setEditStatus] = useState('planning');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
 
   useEffect(() => {
     dispatch(fetchProjects());
   }, [dispatch]);
 
-  const handleOpenStatusModal = (project) => {
-    setSelectedProjectForStatus(project);
-    setNewStatus(project.status || 'planning');
-    setStatusModalOpen(true);
+  const handleOpenEditModal = (project) => {
+    setSelectedProjectToEdit(project);
+    setEditName(project.name || '');
+    setEditDesc(project.description || '');
+    setEditDepartment(project.department || '');
+    // Convert from raw INR to clean Crores representation (e.g. 500000000 -> 50)
+    setEditBudget(toCrores(project.budget));
+    setEditUsedBudget(toCrores(project.usedbudget ?? project.utilizedBudget));
+    setEditPriority(project.priority || 'medium');
+    setEditStatus(project.status || 'planning');
+    setEditStartDate(project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '');
+    setEditEndDate(project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '');
+    setEditModalOpen(true);
   };
 
-  const handleSaveStatus = async () => {
-    if (!selectedProjectForStatus) return;
-    const projId = selectedProjectForStatus._id || selectedProjectForStatus.id;
+  const handleSaveProjectEdit = async (e) => {
+    e?.preventDefault?.();
+    if (!selectedProjectToEdit) return;
+    if (!editName.trim()) {
+      dispatch(addToast({ type: 'error', message: 'Project name is required' }));
+      return;
+    }
 
-    await dispatch(
-      updateProjectStatusThunk({
-        id: projId,
-        status: newStatus,
-      })
-    );
+    const numBudget = Number(editBudget || 0);
+    const numUsed = Number(editUsedBudget || 0);
 
-    dispatch(
-      addToast({
-        type: 'success',
-        message: `Project status updated to ${newStatus}`,
-      })
-    );
+    // Strict validation exception: Utilized Outlay must not be higher than Sanctioned Budget!
+    if (numUsed > numBudget) {
+      dispatch(
+        addToast({
+          type: 'error',
+          message: `Validation Error: Utilized Outlay (₹${numUsed} Cr) cannot exceed Sanctioned Budget (₹${numBudget} Cr).`,
+        })
+      );
+      return;
+    }
 
-    setStatusModalOpen(false);
+    const projId = selectedProjectToEdit._id || selectedProjectToEdit.id;
+    const parsedBudget = toRawINR(editBudget);
+    const parsedUsed = toRawINR(editUsedBudget);
+
+    try {
+      setIsUpdatingProject(true);
+      await projectApi.update(projId, {
+        name: editName.trim(),
+        description: editDesc.trim(),
+        department: editDepartment.trim(),
+        budget: parsedBudget,
+        usedbudget: parsedUsed,
+        utilizedBudget: parsedUsed,
+        priority: editPriority,
+        status: editStatus,
+        startDate: editStartDate ? new Date(editStartDate) : null,
+        endDate: editEndDate ? new Date(editEndDate) : null,
+      });
+
+      dispatch(addToast({ type: 'success', message: 'Project details updated successfully' }));
+      setEditModalOpen(false);
+      dispatch(fetchProjects());
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err.message || 'Failed updating project details' }));
+    } finally {
+      setIsUpdatingProject(false);
+    }
   };
 
   const handleDeleteProject = async (project) => {
@@ -89,7 +148,7 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!projects || projects.length === 0) {
       dispatch(addToast({ type: 'warning', message: 'No projects match the current filter to export.' }));
       return;
@@ -111,14 +170,14 @@ const ProjectsPage = () => {
     ];
 
     const filterTag = filters.status === 'ALL' ? 'all' : filters.status.toLowerCase();
-    const filename = `projects_directory_${filterTag}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `projects_directory_${filterTag}_${new Date().toISOString().slice(0, 10)}.xls`;
 
-    const success = exportToCSV(projects, headers, filename);
+    const success = exportToExcelReadOnly(projects, headers, filename, 'Projects Directory');
     if (success) {
       dispatch(
         addToast({
           type: 'success',
-          message: `Exported ${projects.length} project(s) (${filters.status.toUpperCase()} filter) to CSV`,
+          message: `Exported ${projects.length} project(s) (${filters.status.toUpperCase()} filter) to Read-Only Excel`,
         })
       );
     }
@@ -153,11 +212,11 @@ const ProjectsPage = () => {
             variant="secondary"
             size="sm"
             icon={Download}
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="flex-1 sm:flex-initial"
-            title={`Export ${projects.length} currently filtered projects to CSV`}
+            title={`Export ${projects.length} currently filtered projects to Read-Only Excel`}
           >
-            Export CSV ({projects.length})
+            Export Excel (Read-Only) ({projects.length})
           </Button>
 
           {isAdmin && (
@@ -281,21 +340,24 @@ const ProjectsPage = () => {
               projects.map((project) => {
                 const projId = project._id || project.id;
                 const budget = Number(project.budget || 0);
-                const used = Number(project.usedbudget || 0);
-                const progressPct =
-                  budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+                const used = Number(project.usedbudget ?? project.utilizedBudget ?? 0);
+                const progressPct = calculateProgress(budget, used);
                 const clientName = project.clientId?.name || 'N/A';
                 const teamOrOwner =
                   project.teamId?.name || project.ownerId?.username || 'Mission Cell';
 
                 return (
-                  <tr key={projId} className="hover:bg-slate-50/80 transition-colors">
+                  <tr
+                    key={projId}
+                    onClick={() => navigate(`/projects/${projId}`)}
+                    className="hover:bg-blue-50/40 dark:hover:bg-slate-700/40 cursor-pointer transition-colors group"
+                  >
                     {/* Name */}
                     <td className="px-4 py-3.5 max-w-xs">
                       <div className="flex flex-col">
                         <span
-                          className="font-semibold text-slate-900 hover:text-blue-700 cursor-pointer"
-                          onClick={() => navigate(`/projects/${projId}`)}
+                          className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors"
+                          title={`View project details for ${project.name}`}
                         >
                           {project.name}
                         </span>
@@ -363,7 +425,10 @@ const ProjectsPage = () => {
                     <td className="px-4 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => navigate(`/projects/${projId}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/projects/${projId}`);
+                          }}
                           className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                           title="View Details"
                         >
@@ -373,14 +438,20 @@ const ProjectsPage = () => {
                         {isAdmin && (
                           <>
                             <button
-                              onClick={() => handleOpenStatusModal(project)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(project);
+                              }}
                               className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                              title="Update Status"
+                              title="Edit Scheme Details"
                             >
                               <Edit3 size={16} />
                             </button>
                             <button
-                              onClick={() => handleDeleteProject(project)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProject(project);
+                              }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               title="Delete Project"
                             >
@@ -410,9 +481,8 @@ const ProjectsPage = () => {
           projects.map((project) => {
             const projId = project._id || project.id;
             const budget = Number(project.budget || 0);
-            const used = Number(project.usedbudget || 0);
-            const progressPct =
-              budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+            const used = Number(project.usedbudget ?? project.utilizedBudget ?? 0);
+            const progressPct = calculateProgress(budget, used);
             const clientName = project.clientId?.name || 'Central Nodal Agency';
             const teamOrOwner =
               project.teamId?.name || project.ownerId?.username || 'Executive Officer';
@@ -420,15 +490,13 @@ const ProjectsPage = () => {
             return (
               <div
                 key={projId}
-                className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col gap-3"
+                onClick={() => navigate(`/projects/${projId}`)}
+                className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col gap-3 cursor-pointer hover:border-blue-300 transition-all group"
               >
                 {/* Top Row: Name + Status Badge */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <h3
-                      onClick={() => navigate(`/projects/${projId}`)}
-                      className="font-bold text-sm text-slate-900 leading-snug hover:text-blue-700 cursor-pointer break-words"
-                    >
+                    <h3 className="font-bold text-sm leading-snug break-words text-slate-900 group-hover:text-blue-700 transition-colors">
                       {project.name}
                     </h3>
                     {project.description && (
@@ -484,7 +552,10 @@ const ProjectsPage = () => {
                     size="sm"
                     variant="secondary"
                     icon={Eye}
-                    onClick={() => navigate(`/projects/${projId}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/projects/${projId}`);
+                    }}
                     className="flex-1 text-xs justify-center"
                   >
                     View Details
@@ -493,14 +564,20 @@ const ProjectsPage = () => {
                   {isAdmin && (
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleOpenStatusModal(project)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(project);
+                        }}
                         className="p-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                        title="Change Status"
+                        title="Edit Scheme Details"
                       >
                         <Edit3 size={15} />
                       </button>
                       <button
-                        onClick={() => handleDeleteProject(project)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProject(project);
+                        }}
                         className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                         title="Delete Project"
                       >
@@ -515,44 +592,154 @@ const ProjectsPage = () => {
         )}
       </div>
 
-      {/* STATUS UPDATE MODAL */}
+      {/* EDIT PROJECT SCHEME MODAL */}
       <Modal
-        isOpen={statusModalOpen}
-        onClose={() => setStatusModalOpen(false)}
-        title="Update Operational Status"
+        isOpen={editModalOpen}
+        onClose={() => !isUpdatingProject && setEditModalOpen(false)}
+        title="Edit Infrastructure Scheme Details"
       >
-        <div className="flex flex-col gap-4">
-          <p className="text-xs text-slate-600">
-            Select the new operational lifecycle status for{' '}
-            <strong className="text-slate-900">{selectedProjectForStatus?.name}</strong>:
-          </p>
+        <form onSubmit={handleSaveProjectEdit} className="flex flex-col gap-4">
+          <Input
+            label="Scheme Title *"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Official Scheme Name"
+            required
+            disabled={isUpdatingProject}
+          />
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Lifecycle Stage
+              Description & Scope
             </label>
-            <select
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-600 capitalize"
-            >
-              <option value="planning">Planning (Initial sanctioning)</option>
-              <option value="active">Active (Ground execution ongoing)</option>
-              <option value="on-hold">On-Hold (Blocked / Awaiting clearance)</option>
-              <option value="completed">Completed (Commissioned & verified)</option>
-              <option value="cancelled">Cancelled (Terminated)</option>
-            </select>
+            <textarea
+              rows={3}
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              placeholder="Outline project objectives, deliverables, and scope..."
+              disabled={isUpdatingProject}
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
+            />
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5 pt-2">
-            <Button variant="ghost" onClick={() => setStatusModalOpen(false)}>
+          <div>
+            <Input
+              label="Ministry / Sponsoring Department"
+              value={editDepartment}
+              onChange={(e) => setEditDepartment(e.target.value)}
+              placeholder="e.g. Ministry of Road Transport & Highways"
+              disabled={isUpdatingProject}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <Input
+              label="Sanctioned Budget (₹ Cr) *"
+              type="number"
+              step="any"
+              min="0"
+              value={editBudget}
+              onChange={(e) => setEditBudget(e.target.value)}
+              placeholder="e.g. 50 or 500"
+              required
+              disabled={isUpdatingProject}
+              helperText={editBudget ? `₹${editBudget} Cr` : undefined}
+            />
+
+            <Input
+              label="Utilized Outlay (₹ Cr) *"
+              type="number"
+              step="any"
+              min="0"
+              value={editUsedBudget}
+              onChange={(e) => setEditUsedBudget(e.target.value)}
+              placeholder="e.g. 40 or 420"
+              required
+              disabled={isUpdatingProject}
+              helperText={editUsedBudget ? `₹${editUsedBudget} Cr` : undefined}
+              error={
+                Number(editUsedBudget) > Number(editBudget)
+                  ? `Utilized Outlay cannot exceed Sanctioned Budget (Max: ₹${editBudget || 0} Cr)`
+                  : undefined
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Priority Tier
+              </label>
+              <select
+                value={editPriority}
+                onChange={(e) => setEditPriority(e.target.value)}
+                disabled={isUpdatingProject}
+                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 uppercase"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Operational Lifecycle Status
+              </label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                disabled={isUpdatingProject}
+                className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 uppercase"
+              >
+                <option value="planning">PLANNING</option>
+                <option value="active">ACTIVE</option>
+                <option value="on-hold">ON-HOLD</option>
+                <option value="completed">COMPLETED</option>
+                <option value="cancelled">CANCELLED</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <Input
+              label="Start Date"
+              type="date"
+              min={todayStr}
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+              disabled={isUpdatingProject}
+            />
+
+            <Input
+              label="Target Completion Date"
+              type="date"
+              min={todayStr}
+              value={editEndDate}
+              onChange={(e) => setEditEndDate(e.target.value)}
+              disabled={isUpdatingProject}
+            />
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5 pt-2 border-t border-slate-100">
+            <Button
+              variant="ghost"
+              onClick={() => setEditModalOpen(false)}
+              disabled={isUpdatingProject}
+            >
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSaveStatus}>
-              Save Status
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={isUpdatingProject}
+              isLoading={isUpdatingProject}
+            >
+              Save Project Changes
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

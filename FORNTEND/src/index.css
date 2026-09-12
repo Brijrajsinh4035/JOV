@@ -42,7 +42,9 @@ html.dark footer,
 
 /* Breadcrumbs Bar */
 html.dark header + div,
-[data-theme="dark"] header + div {
+[data-theme="dark"] header + div,
+html.dark header + nav,
+[data-theme="dark"] header + nav {
   background-color: #0f172a !important;
   border-color: #1e293b !important;
   color: #94a3b8 !important;
