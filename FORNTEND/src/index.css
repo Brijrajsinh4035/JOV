@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased font-sans min-h-screen selection:bg-blue-500 selection:text-white transition-colors duration-200;
+  }
+}
+
+/* ==========================================================================
+   Comprehensive Government Portal Dark Mode Theme System
+   Applies instantly whenever <html class="dark"> or [data-theme="dark"] is set
+   ========================================================================== */
+
+html.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Body & Core Background */
+html.dark body,
+[data-theme="dark"] body {
+  background-color: #0b1120 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Main Layout & Navigation */
+html.dark header,
+[data-theme="dark"] header {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+html.dark footer,
+[data-theme="dark"] footer {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* Breadcrumbs Bar */
+html.dark header + div,
+[data-theme="dark"] header + div {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* Cards & Modals */
+html.dark .bg-white,
+[data-theme="dark"] .bg-white {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+/* Sub-surfaces, Filters & Secondary Containers */
+html.dark .bg-slate-50,
+[data-theme="dark"] .bg-slate-50 {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .bg-slate-100,
+[data-theme="dark"] .bg-slate-100 {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark .bg-slate-200,
+[data-theme="dark"] .bg-slate-200 {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Borders & Dividers */
+html.dark .border-slate-200,
+[data-theme="dark"] .border-slate-200,
+html.dark .border-slate-100,
+[data-theme="dark"] .border-slate-100,
+html.dark .border-slate-300,
+[data-theme="dark"] .border-slate-300 {
+  border-color: #334155 !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155 !important;
+}
+
+/* Typography Overrides */
+html.dark .text-slate-900,
+[data-theme="dark"] .text-slate-900,
+html.dark .text-slate-800,
+[data-theme="dark"] .text-slate-800,
+html.dark .text-slate-700,
+[data-theme="dark"] .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-600,
+[data-theme="dark"] .text-slate-600,
+html.dark .text-slate-500,
+[data-theme="dark"] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400,
+[data-theme="dark"] .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Inputs, Selects & Form Controls */
+html.dark input,
+[data-theme="dark"] input,
+html.dark select,
+[data-theme="dark"] select,
+html.dark textarea,
+[data-theme="dark"] textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+[data-theme="dark"] input::placeholder,
+html.dark textarea::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark select option,
+[data-theme="dark"] select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Tables in Dark Mode */
+html.dark thead,
+[data-theme="dark"] thead {
+  background-color: #0f172a !important;
+}
+
+html.dark thead th,
+[data-theme="dark"] thead th {
+  color: #94a3b8 !important;
+}
+
+html.dark tbody tr:hover,
+[data-theme="dark"] tbody tr:hover {
+  background-color: rgba(51, 65, 85, 0.4) !important;
+}
+
+/* Interactive States & Hovers */
+html.dark .hover\:bg-slate-100:hover,
+[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: #334155 !important;
+}
+
+html.dark .hover\:bg-slate-50:hover,
+[data-theme="dark"] .hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+}
+
+html.dark button.text-slate-600,
+[data-theme="dark"] button.text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+/* Modals & Dialogs */
+html.dark div[role="dialog"],
+[data-theme="dark"] div[role="dialog"],
+html.dark .fixed .bg-white,
+[data-theme="dark"] .fixed .bg-white {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Kanban Columns in Dark Mode */
+html.dark .bg-slate-100\/80,
+[data-theme="dark"] .bg-slate-100\/80,
+html.dark .bg-slate-50\/70,
+[data-theme="dark"] .bg-slate-50\/70 {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
