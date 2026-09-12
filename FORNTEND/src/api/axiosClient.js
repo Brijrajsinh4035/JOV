@@ -2,7 +2,7 @@ import axios from 'axios';
 import { APP_CONFIG } from '../utils/constants';
 import { storage } from '../utils/storage';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 /**
  * Pre-configured Axios instance with request and response interceptors
@@ -10,6 +10,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 export const axiosClient = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
