@@ -16,6 +16,7 @@ import riskRoutes from './risk.routes.js';
 import reportRoutes from './report.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import stateRoutes from './state.routes.js';
+import aiRoutes from './ai.routes.js';
 
 const router = Router();
 
@@ -45,6 +46,9 @@ router.use('/activity-logs', activityLogRoutes);
 router.use('/risks', riskRoutes);
 router.use('/reports', reportRoutes);
 router.use('/dashboard', dashboardRoutes);
+
+// Government AI Project Assistant
+router.use('/ai', aiRoutes);
 
 // Legacy reference routes
 router.use('/states', stateRoutes);

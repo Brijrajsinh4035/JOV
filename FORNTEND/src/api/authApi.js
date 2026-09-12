@@ -17,6 +17,22 @@ export const authApi = {
   logout: async () => {
     return await axiosClient.post(API_ENDPOINTS.AUTH.LOGOUT);
   },
+
+  sendMobileOtp: async (mobile) => {
+    return await axiosClient.post(API_ENDPOINTS.AUTH.SEND_OTP, { mobile });
+  },
+
+  verifyMobileOtp: async (mobile, otp) => {
+    return await axiosClient.post(API_ENDPOINTS.AUTH.VERIFY_OTP, { mobile, otp });
+  },
+
+  resendMobileOtp: async (mobile) => {
+    return await axiosClient.post(API_ENDPOINTS.AUTH.RESEND_OTP, { mobile });
+  },
+
+  verifyWidget: async (mobile, widgetData) => {
+    return await axiosClient.post('/auth/mobile/verify-widget', { mobile, widgetData });
+  },
 };
 
 export default authApi;

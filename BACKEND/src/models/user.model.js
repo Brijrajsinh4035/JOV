@@ -18,6 +18,11 @@ const UserSchema = new Schema(
       lowercase: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+      sparse: true,
+    },
     passwordHash: {
       type: String,
     },

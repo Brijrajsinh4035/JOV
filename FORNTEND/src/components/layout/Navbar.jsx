@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
@@ -9,7 +10,7 @@ import {
 } from '../../features/ui/uiSlice';
 import { selectIsAdmin, selectCurrentUser } from '../../features/auth/authSlice';
 import { setSearchQuery, selectProjectsFilters } from '../../features/projects/projectSlice';
-import { Sun, Moon, Menu, Search, LogOut, Bell, ShieldCheck, X } from 'lucide-react';
+import { Sun, Moon, Menu, Search, LogOut, Bell, ShieldCheck, X, Bot } from 'lucide-react';
 import { getInitials } from '../../utils/formatters';
 
 const Navbar = () => {
@@ -87,6 +88,16 @@ const Navbar = () => {
         >
           <Search size={18} />
         </button>
+
+        {/* AI Assistant Quick Link */}
+        <Link
+          to="/ai-assistant"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 text-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+          title="Government AI Project Assistant"
+        >
+          <Bot size={15} className="text-amber-500 shrink-0" />
+          <span className="hidden md:inline">AI Assistant</span>
+        </Link>
 
         {/* Theme Toggle */}
         <button

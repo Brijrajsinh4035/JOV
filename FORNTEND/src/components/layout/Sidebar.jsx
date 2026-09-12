@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Shield,
   ShieldCheck,
+  Bot,
+  Sparkles,
   X,
 } from 'lucide-react';
 
@@ -33,6 +35,7 @@ const Sidebar = () => {
     { name: 'Task Board', path: '/tasks', icon: FolderKanban },
     { name: 'Risk Register', path: '/risks', icon: Shield },
     { name: 'Analytical Reports', path: '/reports', icon: FileBarChart2 },
+    { name: 'AI Assistant', path: '/ai-assistant', icon: Bot, isAi: true },
   ];
 
   const handleLinkClick = () => {
@@ -115,18 +118,25 @@ const Sidebar = () => {
               >
                 <Icon size={18} className="shrink-0" />
                 <span
-                  className={`flex-1 whitespace-nowrap truncate ${
-                    collapsed ? 'md:hidden' : 'block'
+                  className={`flex-1 whitespace-nowrap truncate flex items-center justify-between ${
+                    collapsed ? 'md:hidden' : 'flex'
                   }`}
                 >
-                  {item.name}
+                  <span>{item.name}</span>
+                  {item.isAi && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-500 text-slate-950 font-mono tracking-wider">
+                      AI
+                    </span>
+                  )}
                 </span>
-                <ChevronRight
-                  size={14}
-                  className={`opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0 ${
-                    collapsed ? 'md:hidden' : 'block'
-                  }`}
-                />
+                {!item.isAi && (
+                  <ChevronRight
+                    size={14}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0 ${
+                      collapsed ? 'md:hidden' : 'block'
+                    }`}
+                  />
+                )}
               </NavLink>
             );
           })}

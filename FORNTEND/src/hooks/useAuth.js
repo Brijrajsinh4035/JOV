@@ -6,6 +6,8 @@ import {
   selectAuthLoading,
   selectAuthError,
   loginUser,
+  loginWithMobileOtp,
+  loginWithWidget,
   registerUser,
   logout as logoutAction,
 } from '../features/auth/authSlice';
@@ -66,6 +68,54 @@ export const useAuth = () => {
     [dispatch]
   );
 
+  const loginWithOtp = useCallback(
+    async ({ mobile, otp }) => {
+      const result = await dispatch(loginWithMobileOtp({ mobile, otp }));
+      if (loginWithMobileOtp.fulfilled.match(result)) {
+        dispatch(
+          addToast({
+            type: 'success',
+            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified via MSG91.`,
+          })
+        );
+        return { success: true, data: result.payload };
+      } else {
+        dispatch(
+          addToast({
+            type: 'error',
+            message: result.payload || 'OTP verification failed. Please try again.',
+          })
+        );
+        return { success: false, error: result.payload };
+      }
+    },
+    [dispatch]
+  );
+
+  const loginViaWidget = useCallback(
+    async ({ mobile, widgetData }) => {
+      const result = await dispatch(loginWithWidget({ mobile, widgetData }));
+      if (loginWithWidget.fulfilled.match(result)) {
+        dispatch(
+          addToast({
+            type: 'success',
+            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified via MSG91 Widget.`,
+          })
+        );
+        return { success: true, data: result.payload };
+      } else {
+        dispatch(
+          addToast({
+            type: 'error',
+            message: result.payload || 'MSG91 Widget authentication failed.',
+          })
+        );
+        return { success: false, error: result.payload };
+      }
+    },
+    [dispatch]
+  );
+
   const logout = useCallback(() => {
     dispatch(logoutAction());
     dispatch(
@@ -82,6 +132,8 @@ export const useAuth = () => {
     isLoading,
     error,
     login,
+    loginWithOtp,
+    loginViaWidget,
     register,
     logout,
   };

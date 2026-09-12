@@ -9,6 +9,7 @@ import {
 } from '../../features/projects/projectSlice';
 import Sidebar from './Sidebar';  
 import Navbar from './Navbar';
+import AiAssistantWidget from '../common/AiAssistantWidget';
 import { Home, ChevronRight } from 'lucide-react';
 
 const ROUTE_LABELS = {
@@ -20,6 +21,7 @@ const ROUTE_LABELS = {
   milestones: 'Milestones & Gates',
   reports: 'Analytical Reports',
   dashboard: 'Executive Dashboard',
+  'ai-assistant': 'AI Project Assistant',
   login: 'Sign In',
   register: 'Officer Registration',
 };
@@ -153,23 +155,34 @@ const MainLayout = () => {
             </nav>
           </div>
 
-          <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          <main
+            className={`flex-1 w-full mx-auto ${
+              location.pathname.startsWith('/ai-assistant')
+                ? 'p-2 sm:p-3 md:p-4 flex flex-col h-[calc(100dvh-6.5rem)] sm:h-[calc(100vh-6.8rem)] overflow-hidden max-w-[1500px]'
+                : 'p-3.5 sm:p-6 lg:p-8 max-w-[1600px]'
+            }`}
+          >
             <Outlet />
           </main>
 
-          {/* Government Portal Footer */}
-          <footer className="px-3.5 sm:px-6 lg:px-8 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 gap-2 text-center sm:text-left transition-colors">
-            <div>
-              <span>Government Integrated Project Monitoring Platform • Digital India</span>
-            </div>
-            <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-4">
-              <span>Security Audited</span>
-              <span>•</span>
-              <span>NIC Framework Standard</span>
-            </div>
-          </footer>
+          {/* Government Portal Footer (hidden on AI assistant to maximize chat workspace) */}
+          {!location.pathname.startsWith('/ai-assistant') && (
+            <footer className="px-3.5 sm:px-6 lg:px-8 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 gap-2 text-center sm:text-left transition-colors">
+              <div>
+                <span>Government Integrated Project Monitoring Platform • Digital India</span>
+              </div>
+              <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-4">
+                <span>Security Audited</span>
+                <span>•</span>
+                <span>NIC Framework Standard</span>
+              </div>
+            </footer>
+          )}
         </div>
       </div>
+
+      {/* Floating AI Assistant Advisor Widget */}
+      <AiAssistantWidget />
     </div>
   );
 };

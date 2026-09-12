@@ -13,3 +13,4 @@ export { default as commentApi } from './commentApi';
 export { default as notificationApi } from './notificationApi';
 export { default as dashboardApi } from './dashboardApi';
 export { default as reportApi } from './reportApi';
+export { default as aiApi } from './aiApi';

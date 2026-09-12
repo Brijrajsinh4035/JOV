@@ -40,6 +40,36 @@ export const loginUser = createAsyncThunk(
   }
 );
 
+export const loginWithMobileOtp = createAsyncThunk(
+  'auth/loginWithMobileOtp',
+  async ({ mobile, otp }, { rejectWithValue }) => {
+    try {
+      const data = await authApi.verifyMobileOtp(mobile, otp);
+      storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+      storage.set(APP_CONFIG.USER_KEY, data.user);
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || 'OTP verification failed.');
+    }
+  }
+);
+
+export const loginWithWidget = createAsyncThunk(
+  'auth/loginWithWidget',
+  async ({ mobile, widgetData }, { rejectWithValue }) => {
+    try {
+      const data = await authApi.verifyWidget(mobile, widgetData);
+      storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+      storage.set(APP_CONFIG.USER_KEY, data.user);
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || 'MSG91 Widget authentication failed.');
+    }
+  }
+);
+
+
+
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
@@ -98,6 +128,34 @@ export const authSlice = createSlice({
         state.token = action.payload.token;
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(loginWithMobileOtp.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithMobileOtp.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      })
+      .addCase(loginWithMobileOtp.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(loginWithWidget.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithWidget.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      })
+      .addCase(loginWithWidget.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

@@ -38,6 +38,21 @@ export const userDao = {
     return u ? normalizeUser(u) : null;
   },
 
+  findByPhone: async (phone) => {
+    if (!phone) return null;
+    const digits = String(phone).replace(/[^\d]/g, '');
+    const last10 = digits.slice(-10);
+    const u = await User.findOne({
+      $or: [
+        { phone: phone },
+        { phone: digits },
+        { phone: last10 },
+        { phone: { $regex: `${last10}$` } },
+      ],
+    }).select('-passwordHash -password').lean();
+    return u ? normalizeUser(u) : null;
+  },
+
   create: async (userData) => {
     const created = await User.create({
       ...userData,

@@ -8,6 +8,9 @@ export const API_ENDPOINTS = {
     REGISTER: '/auth/register',
     ME: '/auth/me',
     LOGOUT: '/auth/logout',
+    SEND_OTP: '/auth/mobile/send-otp',
+    VERIFY_OTP: '/auth/mobile/verify-otp',
+    RESEND_OTP: '/auth/mobile/resend-otp',
   },
   USERS: {
     BASE: '/users',
@@ -84,6 +87,12 @@ export const API_ENDPOINTS = {
   // Dashboard & Statistics
   DASHBOARD: {
     STATS: '/dashboard/stats',
+  },
+
+  // Government AI Project Assistant
+  AI: {
+    CHAT: '/ai/chat',
+    SUGGESTIONS: '/ai/suggestions',
   },
 
   // Legacy
