@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { aiApi } from '../../api';
+import { useAuth } from '../../hooks/useAuth';
 import Spinner from './Spinner/Spinner';
 import {
   Bot,
@@ -14,34 +15,38 @@ import {
   Zap,
 } from 'lucide-react';
 
+const DEFAULT_WIDGET_INIT = {
+  id: 'init',
+  sender: 'assistant',
+  text: 'Namaste Officer! Ask me anything about ongoing scheme status, budgets, GFR procurement, milestones, or risks.',
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+};
+
 const AiAssistantWidget = () => {
   const location = useLocation();
-
-  // Hide floating widget when user is already on the dedicated full-screen AI Assistant page
-  if (location.pathname.startsWith('/ai-assistant')) {
-    return null;
-  }
-
-  const STORAGE_KEY_WIDGET = 'pmo_ai_widget_messages_v1';
-  const DEFAULT_WIDGET_INIT = {
-    id: 'init',
-    sender: 'assistant',
-    text: 'Namaste Officer! Ask me anything about ongoing scheme status, budgets, GFR procurement, milestones, or risks.',
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-  };
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const userKey = user?._id || user?.id || (user?.email ? user.email.toLowerCase().trim() : null);
+  const widgetStorageKey = userKey ? `pmo_ai_widget_${String(userKey).replace(/[^a-zA-Z0-9_-]/g, '_')}` : null;
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_WIDGET);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+      localStorage.removeItem('pmo_ai_widget_messages_v1');
+    } catch (_) {}
+
+    if (widgetStorageKey) {
+      try {
+        const saved = localStorage.getItem(widgetStorageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
         }
+      } catch (e) {
+        console.warn('Could not load widget history:', e);
       }
-    } catch (e) {
-      console.warn('Could not load widget history:', e);
     }
     return [DEFAULT_WIDGET_INIT];
   });
@@ -49,18 +54,39 @@ const AiAssistantWidget = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const navigate = useNavigate();
 
-  // Persist messages to localStorage
+  // Synchronize messages when user changes
   useEffect(() => {
+    if (!widgetStorageKey) {
+      setMessages([DEFAULT_WIDGET_INIT]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(widgetStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load widget history:', e);
+    }
+    setMessages([DEFAULT_WIDGET_INIT]);
+  }, [widgetStorageKey]);
+
+  // Persist messages to localStorage scoped to user
+  useEffect(() => {
+    if (!widgetStorageKey) return;
     try {
       if (messages && messages.length > 0) {
-        localStorage.setItem(STORAGE_KEY_WIDGET, JSON.stringify(messages));
+        localStorage.setItem(widgetStorageKey, JSON.stringify(messages));
       }
     } catch (e) {
       console.warn('Could not save widget history:', e);
     }
-  }, [messages]);
+  }, [messages, widgetStorageKey]);
 
   useEffect(() => {
     if (isOpen) {
@@ -128,6 +154,11 @@ const AiAssistantWidget = () => {
     'What are the critical risks recorded?',
   ];
 
+  // Hide floating widget when user is already on the dedicated full-screen AI Assistant page
+  if (location.pathname.startsWith('/ai-assistant')) {
+    return null;
+  }
+
   return (
     <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end">
       {/* Floating Expanded Chat Window */}
@@ -172,7 +203,10 @@ const AiAssistantWidget = () => {
                     },
                   ]);
                   try {
-                    localStorage.removeItem(STORAGE_KEY_WIDGET);
+                    if (widgetStorageKey) {
+                      localStorage.removeItem(widgetStorageKey);
+                    }
+                    localStorage.removeItem('pmo_ai_widget_messages_v1');
                   } catch (e) {
                     console.warn(e);
                   }

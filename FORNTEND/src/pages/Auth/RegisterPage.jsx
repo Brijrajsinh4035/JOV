@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Input from '../../components/common/Input/Input';
@@ -26,7 +26,7 @@ const RegisterPage = () => {
     email: '',
     department: '',
     designation: '',
-    role: 'viewer', // 'viewer' or 'admin'
+    role: 'user', // Default User
     password: '',
     confirmPassword: '',
   });
@@ -34,6 +34,27 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Ensure email and password fields start blank and are not populated by browser autofill
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      email: '',
+      password: '',
+      confirmPassword: '',
+    }));
+
+    const timer = setTimeout(() => {
+      setFormData((prev) => ({
+        ...prev,
+        email: '',
+        password: '',
+        confirmPassword: '',
+      }));
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -66,11 +87,10 @@ const RegisterPage = () => {
 
     const payload = {
       name: formData.name.trim(),
-      username: formData.name.trim(),
       email: formData.email.trim().toLowerCase(),
       department: formData.department.trim() || 'Central Infrastructure Wing',
       designation: formData.designation.trim() || 'Project Monitoring Officer',
-      role: formData.role,
+      role: 'user',
       password: formData.password,
     };
 
@@ -124,7 +144,27 @@ const RegisterPage = () => {
 
         {/* Registration Form Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-7 flex flex-col gap-4 transition-colors">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col gap-4">
+            {/* Decoy inputs to absorb browser password autofill */}
+            <input
+              type="text"
+              name="prevent_browser_autofill_email"
+              id="prevent_browser_autofill_email"
+              tabIndex={-1}
+              aria-hidden="true"
+              autoComplete="off"
+              style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, pointerEvents: 'none' }}
+            />
+            <input
+              type="password"
+              name="prevent_browser_autofill_password"
+              id="prevent_browser_autofill_password"
+              tabIndex={-1}
+              aria-hidden="true"
+              autoComplete="off"
+              style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, pointerEvents: 'none' }}
+            />
+
             {errorMessage && (
               <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs leading-relaxed">
                 {errorMessage}
@@ -144,12 +184,17 @@ const RegisterPage = () => {
               />
 
               <Input
+                id="reg-gov-email"
+                name="reg_portal_gov_email"
                 label="Government Email ID"
                 type="email"
                 icon={Mail}
                 placeholder="e.g. pooja.sharma@gov.in"
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
                 required
               />
             </div>
@@ -177,69 +222,20 @@ const RegisterPage = () => {
               />
             </div>
 
-            {/* Role / Access Level Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Authorized Access Level
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleChange('role', 'viewer')}
-                  className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                    formData.role === 'viewer'
-                      ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 dark:border-blue-500 shadow-2xs'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className={`p-2 rounded-lg shrink-0 ${formData.role === 'viewer' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
-                    <Shield size={16} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      Viewer / Auditor
-                      {formData.role === 'viewer' && <CheckCircle2 size={13} className="text-blue-600 dark:text-blue-400" />}
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                      Surveillance dashboard, risk register, and analytical report generation.
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleChange('role', 'admin')}
-                  className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                    formData.role === 'admin'
-                      ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/40 dark:border-amber-500 shadow-2xs'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className={`p-2 rounded-lg shrink-0 ${formData.role === 'admin' ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
-                    <ShieldCheck size={16} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      Nodal Admin
-                      {formData.role === 'admin' && <CheckCircle2 size={13} className="text-amber-600 dark:text-amber-400" />}
-                    </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                      Full authority: register schemes, edit milestones, manage tasks, and risks.
-                    </span>
-                  </div>
-                </button>
-              </div>
-            </div>
-
             {/* Password & Confirm Password Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
+                id="reg-secure-password"
+                name="reg_portal_secure_password"
                 label="Secure Password"
                 type={showPassword ? 'text' : 'password'}
                 icon={Lock}
                 placeholder="At least 6 characters"
                 value={formData.password}
                 onChange={(e) => handleChange('password', e.target.value)}
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
                 rightElement={
                   <button
                     type="button"
@@ -253,12 +249,17 @@ const RegisterPage = () => {
               />
 
               <Input
+                id="reg-confirm-password"
+                name="reg_portal_confirm_password"
                 label="Confirm Password"
                 type={showConfirmPassword ? 'text' : 'password'}
                 icon={Lock}
                 placeholder="Re-enter password"
                 value={formData.confirmPassword}
                 onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
                 rightElement={
                   <button
                     type="button"
@@ -270,14 +271,6 @@ const RegisterPage = () => {
                 }
                 required
               />
-            </div>
-
-            {/* Security Compliance Banner */}
-            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
-              <ShieldCheck size={16} className="text-blue-700 dark:text-blue-400 shrink-0 mt-0.5" />
-              <span className="leading-snug">
-                Credentials are encrypted with salted cryptographic hashing and authenticated via SHA-256 JWT protocols in accordance with government data protection standards.
-              </span>
             </div>
 
             {/* Register Submit Button */}

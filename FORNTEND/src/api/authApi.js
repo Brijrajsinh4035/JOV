@@ -33,6 +33,10 @@ export const authApi = {
   verifyWidget: async (mobile, widgetData) => {
     return await axiosClient.post('/auth/mobile/verify-widget', { mobile, widgetData });
   },
+
+  completeMobileProfile: async (profileData) => {
+    return await axiosClient.post('/auth/mobile/complete-profile', profileData);
+  },
 };
 
 export default authApi;

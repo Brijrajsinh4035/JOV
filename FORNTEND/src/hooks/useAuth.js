@@ -8,6 +8,7 @@ import {
   loginUser,
   loginWithMobileOtp,
   loginWithWidget,
+  completeMobileProfile as completeMobileProfileAction,
   registerUser,
   logout as logoutAction,
 } from '../features/auth/authSlice';
@@ -75,7 +76,7 @@ export const useAuth = () => {
         dispatch(
           addToast({
             type: 'success',
-            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified via MSG91.`,
+            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified .`,
           })
         );
         return { success: true, data: result.payload };
@@ -99,7 +100,7 @@ export const useAuth = () => {
         dispatch(
           addToast({
             type: 'success',
-            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified via MSG91 Widget.`,
+            message: `Welcome, ${result.payload.user?.name || 'Officer'}! Verified.`,
           })
         );
         return { success: true, data: result.payload };
@@ -108,6 +109,30 @@ export const useAuth = () => {
           addToast({
             type: 'error',
             message: result.payload || 'MSG91 Widget authentication failed.',
+          })
+        );
+        return { success: false, error: result.payload };
+      }
+    },
+    [dispatch]
+  );
+
+  const completeProfile = useCallback(
+    async (profileData) => {
+      const result = await dispatch(completeMobileProfileAction(profileData));
+      if (completeMobileProfileAction.fulfilled.match(result)) {
+        dispatch(
+          addToast({
+            type: 'success',
+            message: `Profile completed! Welcome, ${result.payload.user?.name || 'Officer'}!`,
+          })
+        );
+        return { success: true, data: result.payload };
+      } else {
+        dispatch(
+          addToast({
+            type: 'error',
+            message: result.payload || 'Failed to complete profile setup.',
           })
         );
         return { success: false, error: result.payload };
@@ -134,6 +159,7 @@ export const useAuth = () => {
     login,
     loginWithOtp,
     loginViaWidget,
+    completeProfile,
     register,
     logout,
   };

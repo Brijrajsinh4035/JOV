@@ -8,6 +8,7 @@ import {
   Lock,
   Mail,
   Building2,
+  User as UserIcon,
   Eye,
   EyeOff,
   ShieldCheck,
@@ -25,7 +26,7 @@ const MSG91_TOKEN_AUTH = '570604TgXYKOeyu6aa58512P1';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, loginWithOtp, loginViaWidget, isLoading: authLoading } = useAuth();
+  const { login, loginWithOtp, loginViaWidget, completeProfile, isLoading: authLoading } = useAuth();
 
   // Authentication Mode: 'mobile' | 'email'
   const [authMode, setAuthMode] = useState('mobile');
@@ -37,13 +38,22 @@ const LoginPage = () => {
 
   // Mobile OTP state
   const [mobileNumber, setMobileNumber] = useState('');
-  const [otpStep, setOtpStep] = useState('input_phone'); // 'input_phone' | 'input_otp'
+  const [otpStep, setOtpStep] = useState('input_phone'); // 'input_phone' | 'input_otp' | 'complete_profile'
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
   const [isWidgetLoaded, setIsWidgetLoaded] = useState(false);
+
+  // Profile completion state (when new officer verifies OTP)
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [profilePassword, setProfilePassword] = useState('');
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState('');
+  const [pendingTempToken, setPendingTempToken] = useState('');
+  const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -89,6 +99,15 @@ const LoginPage = () => {
     return () => clearInterval(timer);
   }, [resendCountdown]);
 
+  // Ensure profile completion inputs are completely blank on entering profile step (prevents browser autofill)
+  useEffect(() => {
+    if (otpStep === 'complete_profile') {
+      setProfileEmail('');
+      setProfileName('');
+      setProfilePassword('');
+    }
+  }, [otpStep]);
+
   // Handle Email & Password Submit
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
@@ -121,8 +140,14 @@ const LoginPage = () => {
       }
     }
 
-    const cleanMobile = mobileNumber.replace(/[^\d]/g, '');
-    const identifier = cleanMobile ? (cleanMobile.startsWith('91') ? cleanMobile : '91' + cleanMobile) : undefined;
+    const cleanMobile = mobileNumber ? mobileNumber.replace(/[^\d]/g, '') : '';
+    if (cleanMobile && cleanMobile.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit Indian mobile number or leave blank to enter in MSG91 popup.');
+      return;
+    }
+    const identifier = cleanMobile && cleanMobile.length === 10
+      ? (cleanMobile.startsWith('91') ? cleanMobile : '91' + cleanMobile)
+      : undefined;
 
     const configuration = {
       widgetId: MSG91_WIDGET_ID,
@@ -131,13 +156,78 @@ const LoginPage = () => {
       exposeMethods: false,
       success: async (data) => {
         console.log('[MSG91 Widget Success]', data);
+        let extractedMobile = cleanMobile;
+
+        // Try extracting from object
+        if (typeof data === 'object' && data !== null) {
+          const direct =
+            data.mobile ||
+            data.phone ||
+            data.number ||
+            data.identifier ||
+            data.contact_number ||
+            data.data?.mobile ||
+            data.data?.number;
+          if (direct && String(direct).replace(/[^\d]/g, '').length >= 10) {
+            extractedMobile = String(direct).replace(/[^\d]/g, '').slice(-10);
+          }
+        }
+
+        // Try decoding JWT token if string or in message
+        const tokenCandidate =
+          typeof data === 'string'
+            ? data
+            : (data?.message || data?.['access-token'] || data?.token || data?.accessToken);
+
+        if (tokenCandidate && typeof tokenCandidate === 'string' && tokenCandidate.startsWith('eyJ')) {
+          try {
+            const parts = tokenCandidate.split('.');
+            if (parts.length === 3) {
+              const base64Url = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+              const jsonPayload = decodeURIComponent(
+                atob(base64Url)
+                  .split('')
+                  .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                  .join('')
+              );
+              const payload = JSON.parse(jsonPayload);
+              console.log('[Decoded MSG91 JWT Payload]:', payload);
+              const jwtMobile =
+                payload.mobile ||
+                payload.phone ||
+                payload.number ||
+                payload.identifier ||
+                payload.sub ||
+                payload.contact_number;
+              if (jwtMobile && String(jwtMobile).replace(/[^\d]/g, '').length >= 10) {
+                extractedMobile = String(jwtMobile).replace(/[^\d]/g, '').slice(-10);
+              }
+            }
+          } catch (e) {
+            console.warn('[MSG91 JWT Decode Note]:', e);
+          }
+        }
+
+        if (extractedMobile) {
+          setMobileNumber(extractedMobile);
+        }
+
         try {
           const res = await loginViaWidget({
-            mobile: cleanMobile || '7203045055',
+            mobile: extractedMobile,
             widgetData: data,
           });
           if (res.success) {
-            navigate('/');
+            if (res.data?.isNewUser) {
+              const verifiedPhone =
+                res.data.phone || (extractedMobile ? `+91${extractedMobile.slice(-10)}` : '');
+              setPendingPhone(verifiedPhone);
+              setPendingTempToken(res.data.tempToken || '');
+              setOtpStep('complete_profile');
+              setSuccessMessage('Mobile number verified! Please provide your official email to finish profile setup.');
+            } else {
+              navigate('/');
+            }
           }
         } catch (err) {
           setErrorMessage(err.message || 'MSG91 Widget authentication failed.');
@@ -250,7 +340,14 @@ const LoginPage = () => {
       const cleanMobile = mobileNumber.replace(/[^\d]/g, '');
       const result = await loginWithOtp({ mobile: cleanMobile, otp: otpCode });
       if (result.success) {
-        navigate('/');
+        if (result.data?.isNewUser) {
+          setPendingPhone(result.data.phone || `+91${cleanMobile}`);
+          setPendingTempToken(result.data.tempToken || '');
+          setOtpStep('complete_profile');
+          setSuccessMessage('Mobile number verified! Please provide your official email to finish profile setup.');
+        } else {
+          navigate('/');
+        }
       } else {
         setErrorMessage(result.error || 'Invalid OTP. Please enter 123456 or check your SMS.');
       }
@@ -258,6 +355,44 @@ const LoginPage = () => {
       setErrorMessage(err.message || 'Verification failed. Please try again.');
     } finally {
       setIsVerifyingOtp(false);
+    }
+  };
+
+  // Handle Profile Completion Submit (for new users verified by MSG91)
+  const handleCompleteProfile = async (e) => {
+    e?.preventDefault?.();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!profileEmail || !profileEmail.includes('@')) {
+      setErrorMessage('Please enter a valid official government email address.');
+      return;
+    }
+
+    if (!profilePassword || profilePassword.length < 6) {
+      setErrorMessage('Please enter a secure password of at least 6 characters.');
+      return;
+    }
+
+    try {
+      setIsSubmittingProfile(true);
+      const res = await completeProfile({
+        phone: pendingPhone || mobileNumber,
+        email: profileEmail.trim(),
+        name: profileName.trim(),
+        password: profilePassword,
+        tempToken: pendingTempToken,
+      });
+
+      if (res.success) {
+        navigate('/');
+      } else {
+        setErrorMessage(res.error || 'Failed to complete profile setup. Please try again.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Profile setup failed. Please try again.');
+    } finally {
+      setIsSubmittingProfile(false);
     }
   };
 
@@ -326,7 +461,7 @@ const LoginPage = () => {
               }`}
             >
               <Smartphone size={14} />
-              <span>Mobile OTP </span>
+              <span>Official MSG91</span>
             </button>
 
             <button
@@ -363,153 +498,282 @@ const LoginPage = () => {
 
           {/* MODE 1: MOBILE OTP AUTHENTICATION */}
           {authMode === 'mobile' && (
-            /*<div className="flex flex-col gap-4">
-              otpStep === 'input_phone' ? (
-                /* Step 1: Phone Input 
-                <form onSubmit={handleSendOtp} className="flex flex-col gap-3.5">
+            otpStep === 'complete_profile' ? (
+              /* Step: Profile Completion for Newly Verified Officer */
+              <form onSubmit={handleCompleteProfile} autoComplete="off" className="flex flex-col gap-3.5">
+                {/* Invisible inputs to divert aggressive browser autofill */}
+                <input
+                  type="text"
+                  name="prevent_browser_autofill_user"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  autoComplete="off"
+                  style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, pointerEvents: 'none' }}
+                />
+                <input
+                  type="password"
+                  name="prevent_browser_autofill_pwd"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  autoComplete="off"
+                  style={{ position: 'absolute', opacity: 0, height: 0, width: 0, zIndex: -1, pointerEvents: 'none' }}
+                />
+
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                      Registered Mobile Number *
-                    </label>
-                    <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/80 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all overflow-hidden">
-                      <div className="px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700 flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 select-none">
-                        <span>🇮🇳</span>
-                        <span>+91</span>
-                      </div>
-                      <input
-                        type="tel"
-                        maxLength={10}
-                        placeholder="e.g. 7203045055"
-                        value={mobileNumber}
-                        onChange={(e) => setMobileNumber(e.target.value.replace(/[^\d]/g, ''))}
-                        className="w-full px-3 py-2.5 text-sm bg-transparent text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none tracking-wider font-mono font-semibold"
-                        required
-                      />
-                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Sparkles size={16} className="text-amber-500" />
+                      <span>Complete Official Profile</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Link your government email to this verified mobile number.
+                    </p>
                   </div>
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    isLoading={isSendingOtp}
-                    disabled={isSendingOtp || mobileNumber.length < 10}
-                    className="w-full bg-blue-900 hover:bg-blue-950 text-white font-semibold py-2.5 sm:py-3 rounded-lg shadow-sm transition-all text-sm sm:text-base cursor-pointer flex items-center justify-center gap-2"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpStep('input_phone');
+                      setErrorMessage('');
+                      setSuccessMessage('');
+                    }}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Send Verification Code</span>
-                  </Button>
-                </form>
-              ) : (
-                /* Step 2: 6-Digit OTP Verification 
-                <form onSubmit={handleVerifyOtp} className="flex flex-col gap-3.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Enter Verification Code
-                      </span>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Sent to <strong className="text-slate-800 dark:text-slate-200">+91 {mobileNumber}</strong>
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpStep('input_phone');
-                        setOtpDigits(['', '', '', '', '', '']);
-                        setErrorMessage('');
-                        setSuccessMessage('');
-                      }}
-                      className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <ArrowLeft size={12} />
-                      <span>Change Number</span>
-                    </button>
-                  </div>
+                    <ArrowLeft size={12} />
+                    <span>Back</span>
+                  </button>
+                </div>
 
-                  {/* 6 Digit Input Boxes 
-                  <div className="flex justify-between gap-1.5 sm:gap-2">
-                    {otpDigits.map((digit, idx) => (
-                      <input
-                        key={idx}
-                        ref={(el) => (otpInputRefs.current[idx] = el)}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        className="w-10 sm:w-12 h-12 text-center text-lg sm:text-xl font-bold font-mono bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                      />
-                    ))}
+                {/* Verified Mobile Pill */}
+                <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-medium">
+                    <Smartphone size={15} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>Verified Mobile: <strong className="font-mono font-bold">{pendingPhone || `+91${mobileNumber.slice(-10)}`}</strong></span>
                   </div>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded-full flex items-center gap-1">
+                    <CheckCircle2 size={11} /> Verified
+                  </span>
+                </div>
 
-                  {/* Test Mode Quick Auto-Fill Helper 
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-blue-900 dark:text-blue-300 font-medium text-[11px] sm:text-xs">
-                      <KeyRound size={14} className="shrink-0 text-blue-700 dark:text-blue-400" />
-                      <span>Test Code: <strong className="font-mono font-bold bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">123456</strong></span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const testDigits = ['1', '2', '3', '4', '5', '6'];
-                        setOtpDigits(testDigits);
-                        otpInputRefs.current[5]?.focus();
-                      }}
-                      className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-md font-bold text-[11px] cursor-pointer shadow-xs transition-colors shrink-0"
-                    >
-                      Auto-Fill Test Code
-                    </button>
-                  </div>
+                {/* Official Email Input */}
+                <div>
+                  <Input
+                    id="reg-officer-email"
+                    name="reg_officer_email_unique"
+                    label="Official Government Email ID *"
+                    type="email"
+                    icon={Mail}
+                    placeholder="e.g. officer@gov.in"
+                    value={profileEmail}
+                    onChange={(e) => setProfileEmail(e.target.value)}
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                    Saved once to your account. You will not need to re-enter it on future logins.
+                  </p>
+                </div>
 
-                  {/* Resend OTP & Countdown 
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-slate-500 dark:text-slate-400">Didn't receive SMS?</span>
-                    {resendCountdown > 0 ? (
-                      <span className="text-slate-400 dark:text-slate-500 font-mono font-medium">
-                        Resend in {resendCountdown}s
-                      </span>
-                    ) : (
+                {/* Full Name Input */}
+                <div>
+                  <Input
+                    id="reg-officer-name"
+                    name="reg_officer_name_unique"
+                    label="Officer Full Name"
+                    type="text"
+                    icon={UserIcon}
+                    placeholder="e.g. Er. Ramesh Kumar"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    autoComplete="off"
+                    data-lpignore="true"
+                  />
+                </div>
+
+                {/* Password Input */}
+                <div>
+                  <Input
+                    id="reg-officer-password"
+                    name="reg_officer_new_password"
+                    label="Create Portal Password *"
+                    type={showProfilePassword ? 'text' : 'password'}
+                    icon={Lock}
+                    placeholder="Minimum 6 characters"
+                    value={profilePassword}
+                    onChange={(e) => setProfilePassword(e.target.value)}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    rightElement={
                       <button
                         type="button"
-                        onClick={handleResendOtp}
-                        disabled={isResendingOtp}
-                        className="font-bold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        onClick={() => setShowProfilePassword(!showProfilePassword)}
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center p-1"
                       >
-                        <RotateCcw size={12} className={isResendingOtp ? 'animate-spin' : ''} />
-                        <span>Resend OTP</span>
+                        {showProfilePassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
-                    )}
-                  </div>
+                    }
+                    required
+                  />
+                </div>
 
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    isLoading={isVerifyingOtp || authLoading}
-                    disabled={otpDigits.join('').length !== 6 || isVerifyingOtp}
-                    className="w-full bg-blue-900 hover:bg-blue-950 text-white font-semibold py-2.5 sm:py-3 rounded-lg shadow-sm transition-all text-sm sm:text-base cursor-pointer"
-                  >
-                    Verify & Authenticate
-                  </Button>
-                </form>
-              )} */
-
-             
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={handleLaunchMsg91Widget}
-                  className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  isLoading={isSubmittingProfile || authLoading}
+                  disabled={isSubmittingProfile || !profileEmail || !profilePassword || profilePassword.length < 6}
+                  className="w-full bg-blue-900 hover:bg-blue-950 text-white font-semibold py-2.5 sm:py-3 rounded-lg shadow-sm transition-all text-sm cursor-pointer mt-1"
                 >
-                  <ExternalLink size={13} />
-                  <span>Click Here To Get Otp</span>
-                </button>
-                {/* <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight">
-                  * Note: Popup widget requires client IP whitelisted in MSG91 (otherwise Error 408 IPBlocked occurs). In-page form above connects directly.
-                </p> */}
+                  Save Profile & Access Dashboard
+                </Button>
+              </form>
+            ) : otpStep === 'input_otp' ? (
+              /* Step 2: 6-Digit In-Page OTP Verification */
+              <form onSubmit={handleVerifyOtp} className="flex flex-col gap-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Enter Verification Code
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Sent to <strong className="text-slate-800 dark:text-slate-200">+91 {mobileNumber}</strong>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpStep('input_phone');
+                      setOtpDigits(['', '', '', '', '', '']);
+                      setErrorMessage('');
+                      setSuccessMessage('');
+                    }}
+                    className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <ArrowLeft size={12} />
+                    <span>Change Number</span>
+                  </button>
+                </div>
+
+                {/* 6 Digit Input Boxes */}
+                <div className="flex justify-between gap-1.5 sm:gap-2">
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (otpInputRefs.current[idx] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      className="w-10 sm:w-12 h-12 text-center text-lg sm:text-xl font-bold font-mono bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    />
+                  ))}
+                </div>
+
+                {/* Test Mode Quick Auto-Fill Helper */}
+                <div className="p-2 sm:p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-blue-900 dark:text-blue-300 font-medium text-[11px] sm:text-xs">
+                    <KeyRound size={14} className="shrink-0 text-blue-700 dark:text-blue-400" />
+                    <span>Test Code: <strong className="font-mono font-bold bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">123456</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const testDigits = ['1', '2', '3', '4', '5', '6'];
+                      setOtpDigits(testDigits);
+                      otpInputRefs.current[5]?.focus();
+                    }}
+                    className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-md font-bold text-[11px] cursor-pointer shadow-xs transition-colors shrink-0"
+                  >
+                    Auto-Fill Test Code
+                  </button>
+                </div>
+
+                {/* Resend OTP & Countdown */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-slate-500 dark:text-slate-400">Didn't receive SMS?</span>
+                  {resendCountdown > 0 ? (
+                    <span className="text-slate-400 dark:text-slate-500 font-mono font-medium">
+                      Resend in {resendCountdown}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={isResendingOtp}
+                      className="font-bold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw size={12} className={isResendingOtp ? 'animate-spin' : ''} />
+                      <span>Resend OTP</span>
+                    </button>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  isLoading={isVerifyingOtp || authLoading}
+                  disabled={otpDigits.join('').length !== 6 || isVerifyingOtp}
+                  className="w-full bg-blue-900 hover:bg-blue-950 text-white font-semibold py-2.5 sm:py-3 rounded-lg shadow-sm transition-all text-sm sm:text-base cursor-pointer"
+                >
+                  Verify & Authenticate
+                </Button>
+              </form>
+            ) : (
+              /* Step 1: Direct Official MSG91 One-Click Verification */
+              <div className="flex flex-col gap-3.5 py-1">
+                {/* Mobile Number Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Registered Mobile Number
+                  </label>
+                  <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs">
+                    <div className="flex items-center gap-1 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 font-bold text-xs shrink-0 select-none">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </div>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="e.g. 8200082363"
+                      value={mobileNumber}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
+                        setMobileNumber(val);
+                      }}
+                      className="w-full px-3 py-2.5 text-xs text-slate-900 dark:text-white bg-transparent outline-none placeholder:text-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* ONE SINGLE OFFICIAL MSG91 BUTTON */}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  onClick={handleLaunchMsg91Widget}
+                  disabled={mobileNumber.replace(/[^\d]/g, '').length !== 10}
+                  className="w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 hover:from-blue-950 hover:to-slate-950 disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all text-sm cursor-pointer flex items-center justify-center gap-2 mt-1"
+                >
+                  <ExternalLink size={16} />
+                  <span>Verify</span>
+                </Button>
+
+                {/* Footer security badge & subtle fallback link */}
+                <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={13} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>256-bit TLS Encrypted</span>
+                  </div>
+                </div>
               </div>
-            )}
+            )
+          )}
 
           {/* MODE 2: EMAIL & PASSWORD AUTHENTICATION */}
           {authMode === 'email' && (

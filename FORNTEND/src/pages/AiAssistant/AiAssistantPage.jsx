@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { aiApi } from '../../api';
+import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/common/Button/Button';
 import Spinner from '../../components/common/Spinner/Spinner';
 import MarkdownView from '../../components/common/MarkdownView';
@@ -28,8 +29,6 @@ const DEFAULT_SUGGESTIONS = [
   { prompt: 'What are the required approvals for Revised Cost Estimates (RCE) above 20%?' },
 ];
 
-const STORAGE_KEY = 'pmo_ai_chat_messages_v1';
-
 const DEFAULT_WELCOME_MESSAGE = {
   id: 'welcome',
   sender: 'assistant',
@@ -39,17 +38,28 @@ const DEFAULT_WELCOME_MESSAGE = {
 };
 
 const AiAssistantPage = () => {
+  const { user } = useAuth();
+  const userKey = user?._id || user?.id || (user?.email ? user.email.toLowerCase().trim() : null);
+  const userStorageKey = userKey ? `pmo_ai_chat_${String(userKey).replace(/[^a-zA-Z0-9_-]/g, '_')}` : null;
+
   const [messages, setMessages] = useState(() => {
+    // Purge obsolete shared key to prevent data leak across users
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+      localStorage.removeItem('pmo_ai_chat_messages_v1');
+    } catch (_) {}
+
+    if (userStorageKey) {
+      try {
+        const saved = localStorage.getItem(userStorageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
         }
+      } catch (e) {
+        console.warn('Could not restore chat history from localStorage:', e);
       }
-    } catch (e) {
-      console.warn('Could not restore chat history from localStorage:', e);
     }
     return [DEFAULT_WELCOME_MESSAGE];
   });
@@ -83,16 +93,38 @@ const AiAssistantPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Persist messages to localStorage on update
+  // Synchronize chat history when logged-in user changes
   useEffect(() => {
+    if (!userStorageKey) {
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(userStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not restore chat history from localStorage:', e);
+    }
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
+  }, [userStorageKey]);
+
+  // Persist messages to localStorage on update scoped to user
+  useEffect(() => {
+    if (!userStorageKey) return;
     try {
       if (messages && messages.length > 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+        localStorage.setItem(userStorageKey, JSON.stringify(messages));
       }
     } catch (e) {
       console.warn('Could not persist chat history to localStorage:', e);
     }
-  }, [messages]);
+  }, [messages, userStorageKey]);
 
   const handleSendMessage = async (textToSend) => {
     const query = (textToSend || inputQuery).trim();
@@ -182,7 +214,10 @@ const AiAssistantPage = () => {
     ];
     setMessages(resetMsg);
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      if (userStorageKey) {
+        localStorage.removeItem(userStorageKey);
+      }
+      localStorage.removeItem('pmo_ai_chat_messages_v1');
     } catch (e) {
       console.warn('Could not clear chat history from localStorage:', e);
     }

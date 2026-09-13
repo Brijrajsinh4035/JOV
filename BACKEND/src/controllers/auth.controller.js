@@ -11,11 +11,11 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const register = asyncHandler(async (req, res) => {
-  const { name, username, email, password, role, department, designation } = req.body;
+  const { name, email, phone, password, role, department, designation } = req.body;
   const result = await authService.register({
     name,
-    username,
     email,
+    phone,
     password,
     role,
     department,
@@ -70,6 +70,22 @@ export const verifyWidgetAuth = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, result, 'MSG91 Widget authentication successful'));
 });
 
+export const completeMobileProfile = asyncHandler(async (req, res) => {
+  const { phone, email, name, password, department, designation, tempToken } = req.body;
+  const result = await authService.completeMobileProfile({
+    phone,
+    email,
+    name,
+    password,
+    department,
+    designation,
+    tempToken,
+  });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, result.message || 'Profile completed and authenticated successfully'));
+});
+
 export default {
   login,
   register,
@@ -79,6 +95,7 @@ export default {
   verifyMobileOtp,
   resendMobileOtp,
   verifyWidgetAuth,
+  completeMobileProfile,
 };
 
 

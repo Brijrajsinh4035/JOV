@@ -8,6 +8,7 @@ import {
   verifyMobileOtp,
   resendMobileOtp,
   verifyWidgetAuth,
+  completeMobileProfile,
 } from '../controllers/auth.controller.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 
@@ -24,12 +25,14 @@ router.post('/mobile/send-otp', sendMobileOtp);
 router.post('/mobile/verify-otp', verifyMobileOtp);
 router.post('/mobile/resend-otp', resendMobileOtp);
 router.post('/mobile/verify-widget', verifyWidgetAuth);
+router.post('/mobile/complete-profile', completeMobileProfile);
 
 // Direct aliases
 router.post('/send-otp', sendMobileOtp);
 router.post('/verify-otp', verifyMobileOtp);
 router.post('/resend-otp', resendMobileOtp);
 router.post('/verify-widget', verifyWidgetAuth);
+router.post('/complete-profile', completeMobileProfile);
 
 export default router;
 

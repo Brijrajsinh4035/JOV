@@ -45,8 +45,10 @@ export const loginWithMobileOtp = createAsyncThunk(
   async ({ mobile, otp }, { rejectWithValue }) => {
     try {
       const data = await authApi.verifyMobileOtp(mobile, otp);
-      storage.set(APP_CONFIG.TOKEN_KEY, data.token);
-      storage.set(APP_CONFIG.USER_KEY, data.user);
+      if (data?.token && data?.user) {
+        storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+        storage.set(APP_CONFIG.USER_KEY, data.user);
+      }
       return data;
     } catch (err) {
       return rejectWithValue(err.message || 'OTP verification failed.');
@@ -59,11 +61,29 @@ export const loginWithWidget = createAsyncThunk(
   async ({ mobile, widgetData }, { rejectWithValue }) => {
     try {
       const data = await authApi.verifyWidget(mobile, widgetData);
-      storage.set(APP_CONFIG.TOKEN_KEY, data.token);
-      storage.set(APP_CONFIG.USER_KEY, data.user);
+      if (data?.token && data?.user) {
+        storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+        storage.set(APP_CONFIG.USER_KEY, data.user);
+      }
       return data;
     } catch (err) {
       return rejectWithValue(err.message || 'MSG91 Widget authentication failed.');
+    }
+  }
+);
+
+export const completeMobileProfile = createAsyncThunk(
+  'auth/completeMobileProfile',
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const data = await authApi.completeMobileProfile(profileData);
+      if (data?.token && data?.user) {
+        storage.set(APP_CONFIG.TOKEN_KEY, data.token);
+        storage.set(APP_CONFIG.USER_KEY, data.user);
+      }
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to complete profile.');
     }
   }
 );
@@ -137,9 +157,11 @@ export const authSlice = createSlice({
       })
       .addCase(loginWithMobileOtp.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
+        if (action.payload?.token && action.payload?.user) {
+          state.isAuthenticated = true;
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+        }
       })
       .addCase(loginWithMobileOtp.rejected, (state, action) => {
         state.isLoading = false;
@@ -151,11 +173,27 @@ export const authSlice = createSlice({
       })
       .addCase(loginWithWidget.fulfilled, (state, action) => {
         state.isLoading = false;
+        if (action.payload?.token && action.payload?.user) {
+          state.isAuthenticated = true;
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+        }
+      })
+      .addCase(loginWithWidget.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(completeMobileProfile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(completeMobileProfile.fulfilled, (state, action) => {
+        state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
       })
-      .addCase(loginWithWidget.rejected, (state, action) => {
+      .addCase(completeMobileProfile.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
