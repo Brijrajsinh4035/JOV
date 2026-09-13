@@ -26,5 +26,6 @@ export const STATUS_COLORS = {
 
 export const USER_ROLES = {
   ADMIN: 'ADMIN',
+  MANAGER: 'MANAGER',
   VIEWER: 'VIEWER',
 };

@@ -26,7 +26,7 @@ const RegisterPage = () => {
     email: '',
     department: '',
     designation: '',
-    role: 'user', // Default User
+    role: 'manager', // Default Manager
     password: '',
     confirmPassword: '',
   });
@@ -63,6 +63,7 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMessage('');
 
     if (!formData.name.trim()) {
@@ -90,7 +91,7 @@ const RegisterPage = () => {
       email: formData.email.trim().toLowerCase(),
       department: formData.department.trim() || 'Central Infrastructure Wing',
       designation: formData.designation.trim() || 'Project Monitoring Officer',
-      role: 'user',
+      role: 'manager',
       password: formData.password,
     };
 

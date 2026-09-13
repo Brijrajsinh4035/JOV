@@ -41,7 +41,7 @@ export const userService = {
       email: userData.email,
       ...(cleanPhone ? { phone: cleanPhone } : {}),
       passwordHash,
-      role: userData.role || 'user',
+      role: userData.role || 'manager',
       isAdmin: userData.role === 'admin' || !!userData.isAdmin,
       createdAt: new Date(),
     });

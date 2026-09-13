@@ -225,58 +225,6 @@ const AiAssistantPage = () => {
 
   return (
     <div className="h-full flex-1 flex flex-col min-h-0 w-full max-w-6xl mx-auto gap-2 sm:gap-2.5">
-      {/* Sleek Government AI Console Header */}
-      <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white shadow-xs border border-slate-800 shrink-0">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 shadow-xs shrink-0">
-            <Bot size={22} className="text-slate-950" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white truncate">
-                Government Project Management Assistant AI
-              </h1>
-              <div className="flex items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Advisor
-                </span>
-                <span className="hidden md:inline-block px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                  gemini-3.6-flash
-                </span>
-              </div>
-            </div>
-            <p className="text-[11px] text-slate-300 hidden sm:block truncate">
-              Public scheme tracking • GFR 2017 procurement • Milestone verification • Risk mitigation
-            </p>
-          </div>
-        </div>
-
-        {/* Header Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowDomainDetails((prev) => !prev)}
-            className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
-            title="View Domain Enforcement Guidelines"
-          >
-            <ShieldCheck size={13} className="text-blue-400" />
-            <span className="hidden sm:inline">Scope</span>
-            {showDomainDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleClearChat}
-            className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-            title="Clear current chat session"
-          >
-            <RotateCcw size={13} />
-            <span className="hidden sm:inline">Clear</span>
-          </button>
-        </div>
-      </div>
-
       {/* Collapsible / Expandable Domain Scope Notice */}
       {showDomainDetails && (
         <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 shrink-0 transition-all shadow-2xs">

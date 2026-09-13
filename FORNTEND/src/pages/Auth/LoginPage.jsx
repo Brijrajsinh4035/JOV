@@ -111,6 +111,7 @@ const LoginPage = () => {
   // Handle Email & Password Submit
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
+    if (authLoading) return;
     setErrorMessage('');
     setSuccessMessage('');
     const result = await login({ email, password });
@@ -262,6 +263,7 @@ const LoginPage = () => {
   // Handle Send Mobile OTP (In-Page)
   const handleSendOtp = async (e) => {
     e?.preventDefault?.();
+    if (isSendingOtp) return;
     setErrorMessage('');
     setSuccessMessage('');
 
@@ -326,6 +328,7 @@ const LoginPage = () => {
   // Handle Verify Mobile OTP Submit
   const handleVerifyOtp = async (e) => {
     e?.preventDefault?.();
+    if (isVerifyingOtp) return;
     setErrorMessage('');
     setSuccessMessage('');
 
@@ -361,6 +364,7 @@ const LoginPage = () => {
   // Handle Profile Completion Submit (for new users verified by MSG91)
   const handleCompleteProfile = async (e) => {
     e?.preventDefault?.();
+    if (isSubmittingProfile) return;
     setErrorMessage('');
     setSuccessMessage('');
 

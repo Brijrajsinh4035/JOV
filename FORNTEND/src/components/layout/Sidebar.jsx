@@ -20,6 +20,7 @@ import {
   Bot,
   Sparkles,
   X,
+  Users,
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -33,6 +34,8 @@ const Sidebar = () => {
     { name: 'Projects Directory', path: '/projects', icon: FolderKanban },
     { name: 'Milestones', path: '/milestones', icon: GitCommit },
     { name: 'Task Board', path: '/tasks', icon: FolderKanban },
+    { name: 'Client Agencies', path: '/clients', icon: Building2 },
+    { name: 'Assigned Teams', path: '/teams', icon: Users },
     { name: 'Risk Register', path: '/risks', icon: Shield },
     { name: 'Analytical Reports', path: '/reports', icon: FileBarChart2 },
     { name: 'AI Assistant', path: '/ai-assistant', icon: Bot, isAi: true },
@@ -197,7 +200,7 @@ const Sidebar = () => {
               <Shield size={16} className="text-sky-400 shrink-0" />
             )}
             <span className="text-xs font-bold text-white tracking-wide truncate">
-              {isAdmin ? 'ADMIN PRIVILEGES' : 'VIEWER ACCESS'}
+              {isAdmin ? 'ADMIN PRIVILEGES' : 'MANAGER ACCESS'}
             </span>
           </div>
           {/* <p className="text-[11px] text-slate-400 leading-snug">

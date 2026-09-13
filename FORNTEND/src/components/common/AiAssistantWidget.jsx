@@ -300,7 +300,7 @@ const AiAssistantWidget = () => {
             <button
               type="submit"
               disabled={isLoading || !inputQuery.trim()}
-              className="w-8 h-8 rounded-xl bg-blue-900 hover:bg-blue-950 text-white flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 shadow-xs"
+              className="w-8 h-8 rounded-xl bg-blue-900 hover:bg-blue-950 text-white flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
             >
               <Send size={13} />
             </button>

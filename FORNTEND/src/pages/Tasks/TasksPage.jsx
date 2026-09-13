@@ -8,6 +8,7 @@ import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
 import Modal from '../../components/common/Modal/Modal';
 import Input from '../../components/common/Input/Input';
+import ConfirmationModal from '../../components/common/ConfirmationModal/ConfirmationModal';
 import { Skeleton, SkeletonKanban, SkeletonTable } from '../../components/common/Skeleton';
 import {
   Plus,
@@ -129,6 +130,11 @@ const TasksPage = () => {
   const [taskStatus, setTaskStatus] = useState('todo');
   const [taskDueDate, setTaskDueDate] = useState('');
 
+  // Delete & Status Advance State
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [advancingTaskId, setAdvancingTaskId] = useState(null);
+
   // Fetch all tasks and projects
   const loadData = async () => {
     try {
@@ -162,6 +168,7 @@ const TasksPage = () => {
   // Create Task
   const handleCreateTask = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!taskTitle.trim() || !selectedProjectId) {
       dispatch(addToast({ type: 'error', message: 'Task title and project are required' }));
       return;
@@ -196,7 +203,7 @@ const TasksPage = () => {
   // Move Task Status (Manual or Drag-and-Drop)
   const handleMoveStatus = async (task, nextStatus) => {
     const taskId = task._id || task.id;
-    if (task.status === nextStatus) return;
+    if (task.status === nextStatus || advancingTaskId === taskId) return;
 
     // Optimistic UI Update
     const prevTasks = [...tasks];
@@ -205,25 +212,40 @@ const TasksPage = () => {
     );
 
     try {
+      setAdvancingTaskId(taskId);
       await taskApi.update(taskId, { status: nextStatus });
       dispatch(addToast({ type: 'info', message: `Task moved to ${nextStatus.replace('-', ' ')}` }));
     } catch (err) {
       // Rollback on failure
       setTasks(prevTasks);
       dispatch(addToast({ type: 'error', message: err.message || 'Failed to update task status' }));
+    } finally {
+      setAdvancingTaskId(null);
     }
   };
 
   // Delete Task
-  const handleDeleteTask = async (taskId) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      try {
-        await taskApi.delete(taskId);
-        setTasks((prev) => prev.filter((t) => (t._id || t.id) !== taskId));
-        dispatch(addToast({ type: 'info', message: 'Task deleted' }));
-      } catch (err) {
-        dispatch(addToast({ type: 'error', message: err.message || 'Failed to delete task' }));
-      }
+  const handleDeleteTask = (taskOrId, optionalTitle = '') => {
+    if (typeof taskOrId === 'object' && taskOrId !== null) {
+      setTaskToDelete({ id: taskOrId._id || taskOrId.id, title: taskOrId.title || 'Untitled Task' });
+    } else {
+      const found = tasks.find((t) => (t._id || t.id) === taskOrId);
+      setTaskToDelete({ id: taskOrId, title: optionalTitle || found?.title || 'Untitled Task' });
+    }
+  };
+
+  const handleConfirmDeleteTask = async () => {
+    if (!taskToDelete || isDeletingTask) return;
+    try {
+      setIsDeletingTask(true);
+      await taskApi.delete(taskToDelete.id);
+      setTasks((prev) => prev.filter((t) => (t._id || t.id) !== taskToDelete.id));
+      dispatch(addToast({ type: 'info', message: 'Task deleted' }));
+      setTaskToDelete(null);
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err.message || 'Failed to delete task' }));
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -788,6 +810,8 @@ const TasksPage = () => {
                               {/* Move Left */}
                               {col.id !== 'todo' && (
                                 <button
+                                  type="button"
+                                  disabled={advancingTaskId === taskId}
                                   onClick={() =>
                                     handleMoveStatus(
                                       task,
@@ -801,7 +825,7 @@ const TasksPage = () => {
                                     )
                                   }
                                   title="Move to previous status"
-                                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <ArrowLeft size={13} />
                                 </button>
@@ -810,6 +834,8 @@ const TasksPage = () => {
                               {/* Move Right */}
                               {col.id !== 'done' && (
                                 <button
+                                  type="button"
+                                  disabled={advancingTaskId === taskId}
                                   onClick={() =>
                                     handleMoveStatus(
                                       task,
@@ -817,13 +843,15 @@ const TasksPage = () => {
                                         ? 'in-progress'
                                         : col.id === 'in-progress'
                                         ? 'review'
+                                        : col.id === 'review'
+                                        ? 'done'
                                         : col.id === 'blocked'
                                         ? 'in-progress'
                                         : 'done'
                                     )
                                   }
                                   title="Advance to next status"
-                                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                   <ArrowRight size={13} />
                                 </button>
@@ -831,9 +859,11 @@ const TasksPage = () => {
 
                               {/* Delete Button */}
                               <button
-                                onClick={() => handleDeleteTask(taskId)}
+                                type="button"
+                                disabled={isDeletingTask}
+                                onClick={() => handleDeleteTask(task)}
                                 title="Delete task"
-                                className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -967,11 +997,13 @@ const TasksPage = () => {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button
+                              type="button"
+                              disabled={isDeletingTask}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteTask(taskId);
+                                handleDeleteTask(task);
                               }}
-                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               title="Delete Task"
                             >
                               <Trash2 size={14} />
@@ -1061,8 +1093,11 @@ const TasksPage = () => {
                           {formatDate(task.dueDate)}
                         </span>
                         <button
-                          onClick={() => handleDeleteTask(taskId)}
-                          className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                          type="button"
+                          disabled={isDeletingTask}
+                          onClick={() => handleDeleteTask(task)}
+                          className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Delete Task"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -1198,6 +1233,21 @@ const TasksPage = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirmation Modal for Task Deletion */}
+      <ConfirmationModal
+        isOpen={!!taskToDelete}
+        onClose={() => !isDeletingTask && setTaskToDelete(null)}
+        onConfirm={handleConfirmDeleteTask}
+        title="Delete Project Task"
+        message="Are you sure you want to permanently delete this task? This action cannot be undone."
+        itemName={taskToDelete?.title}
+        confirmText="Delete Task"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon={Trash2}
+        isLoading={isDeletingTask}
+      />
     </div>
   );
 };

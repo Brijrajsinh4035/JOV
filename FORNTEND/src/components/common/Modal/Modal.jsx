@@ -28,16 +28,16 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'max-w-lg'
       }}
     >
       <div
-        className={`w-full ${maxWidth} max-w-[calc(100vw-1.25rem)] bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] transition-all my-auto`}
+        className={`w-full ${maxWidth} max-w-[calc(100vw-1.25rem)] bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] transition-all my-auto`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 shrink-0">
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate pr-2">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate pr-2">
             {title}
           </h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
             title="Close dialog"
           >
             <X size={18} />
@@ -49,7 +49,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'max-w-lg'
 
         {/* Footer */}
         {footer && (
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50 shrink-0">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 px-4 sm:px-6 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 shrink-0">
             {footer}
           </div>
         )}

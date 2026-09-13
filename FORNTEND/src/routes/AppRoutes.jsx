@@ -11,6 +11,8 @@ import TasksPage from '../pages/Tasks/TasksPage';
 import RisksPage from '../pages/Risks/RisksPage';
 import ReportsPage from '../pages/Reports/ReportsPage';
 import AiAssistantPage from '../pages/AiAssistant/AiAssistantPage';
+import ClientsPage from '../pages/Clients/ClientsPage';
+import TeamsPage from '../pages/Teams/TeamsPage';
 import LoginPage from '../pages/Auth/LoginPage';
 import RegisterPage from '../pages/Auth/RegisterPage';
 import NotFoundPage from '../pages/NotFound/NotFoundPage';
@@ -31,6 +33,8 @@ const AppRoutes = () => {
           <Route path="/projects/new" element={<CreateProjectPage />} />
           <Route path="/milestones" element={<MilestonesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/teams" element={<TeamsPage />} />
           <Route path="/risks" element={<RisksPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/ai-assistant" element={<AiAssistantPage />} />

@@ -34,7 +34,7 @@ export const authService = {
     }
 
     if (!isMatch) {
-      throw new ApiError(401, 'Invalid password. Please check your credentials.');
+      throw new ApiError(401, 'Invalid credentials.');
     }
 
     // Update lastLogin
@@ -58,7 +58,7 @@ export const authService = {
     };
   },
 
-  register: async ({ name, email, phone, password, role = 'user', department = '', designation = '' }) => {
+  register: async ({ name, email, phone, password, role = 'manager', department = '', designation = '' }) => {
     const finalName = name?.trim();
     if (!finalName || !email || !password) {
       throw new ApiError(400, 'Full name, email, and password are required');
@@ -84,7 +84,7 @@ export const authService = {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const normalizedRole = 'user';
+    const normalizedRole = 'manager';
     const newUser = await userDao.create({
       name: finalName,
       email: cleanEmail,
@@ -399,7 +399,7 @@ export const authService = {
         email: cleanEmail,
         phone: cleanPhone,
         passwordHash: hashedPassword,
-        role: 'user',
+        role: 'manager',
         isAdmin: false,
         department: department?.trim() || '',
         designation: designation?.trim() || '',

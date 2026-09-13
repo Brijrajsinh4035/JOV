@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import {
@@ -19,6 +19,8 @@ import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
 import Modal from '../../components/common/Modal/Modal';
 import Input from '../../components/common/Input/Input';
+import ConfirmationModal from '../../components/common/ConfirmationModal/ConfirmationModal';
+import Pagination from '../../components/common/Pagination/Pagination';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 import {
   Search,
@@ -70,6 +72,23 @@ const ProjectsPage = () => {
   const [editEndDate, setEditEndDate] = useState('');
   const [isUpdatingProject, setIsUpdatingProject] = useState(false);
 
+  // Delete project modal state
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return projects.slice(start, start + pageSize);
+  }, [projects, currentPage, pageSize]);
+
   useEffect(() => {
     dispatch(fetchProjects());
   }, [dispatch]);
@@ -91,7 +110,7 @@ const ProjectsPage = () => {
 
   const handleSaveProjectEdit = async (e) => {
     e?.preventDefault?.();
-    if (!selectedProjectToEdit) return;
+    if (!selectedProjectToEdit || isUpdatingProject) return;
     if (!editName.trim()) {
       dispatch(addToast({ type: 'error', message: 'Project name is required' }));
       return;
@@ -140,11 +159,22 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleDeleteProject = async (project) => {
-    const projId = project._id || project.id;
-    if (window.confirm(`Are you sure you want to remove project "${project.name}"?`)) {
-      await dispatch(deleteProjectThunk(projId));
-      dispatch(addToast({ type: 'info', message: `Project removed from registry.` }));
+  const handleDeleteProject = (project) => {
+    setProjectToDelete(project);
+  };
+
+  const handleConfirmDeleteProject = async () => {
+    if (!projectToDelete || isDeletingProject) return;
+    const projId = projectToDelete._id || projectToDelete.id;
+    try {
+      setIsDeletingProject(true);
+      await dispatch(deleteProjectThunk(projId)).unwrap();
+      dispatch(addToast({ type: 'info', message: 'Project removed from registry.' }));
+      setProjectToDelete(null);
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err?.message || 'Failed removing project from registry.' }));
+    } finally {
+      setIsDeletingProject(false);
     }
   };
 
@@ -337,7 +367,7 @@ const ProjectsPage = () => {
                 </td>
               </tr>
             ) : (
-              projects.map((project) => {
+              paginatedProjects.map((project) => {
                 const projId = project._id || project.id;
                 const budget = Number(project.budget || 0);
                 const used = Number(project.usedbudget ?? project.utilizedBudget ?? 0);
@@ -448,11 +478,13 @@ const ProjectsPage = () => {
                               <Edit3 size={16} />
                             </button>
                             <button
+                              type="button"
+                              disabled={isDeletingProject}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteProject(project);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               title="Delete Project"
                             >
                               <Trash2 size={16} />
@@ -478,7 +510,7 @@ const ProjectsPage = () => {
             No projects matched the selected filters.
           </div>
         ) : (
-          projects.map((project) => {
+          paginatedProjects.map((project) => {
             const projId = project._id || project.id;
             const budget = Number(project.budget || 0);
             const used = Number(project.usedbudget ?? project.utilizedBudget ?? 0);
@@ -574,11 +606,13 @@ const ProjectsPage = () => {
                         <Edit3 size={15} />
                       </button>
                       <button
+                        type="button"
+                        disabled={isDeletingProject}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteProject(project);
                         }}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Delete Project"
                       >
                         <Trash2 size={15} />
@@ -591,6 +625,21 @@ const ProjectsPage = () => {
           })
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {projects.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={projects.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[6, 10, 20, 50]}
+        />
+      )}
 
       {/* EDIT PROJECT SCHEME MODAL */}
       <Modal
@@ -741,6 +790,21 @@ const ProjectsPage = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirmation Modal for Project Deletion */}
+      <ConfirmationModal
+        isOpen={!!projectToDelete}
+        onClose={() => !isDeletingProject && setProjectToDelete(null)}
+        onConfirm={handleConfirmDeleteProject}
+        title="Remove Project Scheme"
+        message="Are you sure you want to remove this scheme from the registry? All associated milestones, tasks, and historical activity will be permanently deleted."
+        itemName={projectToDelete?.name}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon={Trash2}
+        isLoading={isDeletingProject}
+      />
     </div>
   );
 };

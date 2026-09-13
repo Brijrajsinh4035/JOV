@@ -227,7 +227,9 @@ export const selectIsAdmin = (state) => {
 };
 export const selectUserRole = (state) => {
   const role = (state.auth.user?.role || '').toUpperCase();
-  return role === 'ADMIN' ? 'ADMIN' : 'VIEWER';
+  if (role === 'ADMIN') return 'ADMIN';
+  if (role === 'VIEWER') return 'VIEWER';
+  return 'MANAGER';
 };
 export const selectAuthLoading = (state) => state.auth.isLoading;
 export const selectAuthError = (state) => state.auth.error;

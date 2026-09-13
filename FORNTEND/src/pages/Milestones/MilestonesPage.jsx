@@ -82,6 +82,7 @@ const MilestonesPage = () => {
 
   const handleCreateMilestone = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!mTitle.trim() || !mDueDate || !modalProjectId) {
       dispatch(
         addToast({
@@ -131,6 +132,7 @@ const MilestonesPage = () => {
   };
 
   const handleUpdateMilestoneStatus = async (mid, nextStatus) => {
+    if (updatingMilestoneId === mid) return;
     try {
       setUpdatingMilestoneId(mid);
       await milestoneApi.update(mid, { status: nextStatus });

@@ -20,7 +20,7 @@ db.createCollection("users", {
         username: { bsonType: "string" },
         email: { bsonType: "string", pattern: "^.+@.+\\..+$" },
         passwordHash: { bsonType: "string" },
-        role: { enum: ["admin", "user"] },
+        role: { enum: ["admin", "manager", "user", "viewer"] },
         isAdmin: { bsonType: "bool" },
         lastLogin: { bsonType: "date" },
         createdAt: { bsonType: "date" }

@@ -142,6 +142,7 @@ const ProjectDetailsPage = () => {
 
   const handleSaveProjectEdit = async (e) => {
     e.preventDefault();
+    if (isSubmittingProject) return;
     if (!editName.trim()) {
       dispatch(addToast({ type: 'error', message: 'Project name is required' }));
       return;
@@ -191,6 +192,7 @@ const ProjectDetailsPage = () => {
 
   const handleCreateMilestone = async (e) => {
     e.preventDefault();
+    if (isSubmittingMilestone) return;
     if (!mTitle || !mDueDate) return;
     const projId = project._id || project.id;
 
@@ -217,6 +219,7 @@ const ProjectDetailsPage = () => {
   };
 
   const handleUpdateTaskStatus = async (taskId, nextStatus) => {
+    if (updatingTaskId === taskId) return;
     try {
       setUpdatingTaskId(taskId);
       await taskApi.update(taskId, { status: nextStatus });
@@ -252,6 +255,7 @@ const ProjectDetailsPage = () => {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
+    if (isSubmittingTask) return;
     if (!taskTitle.trim()) {
       dispatch(addToast({ type: 'error', message: 'Task title is required' }));
       return;
@@ -285,6 +289,7 @@ const ProjectDetailsPage = () => {
 
   const handleCreateRisk = async (e) => {
     e.preventDefault();
+    if (isSubmittingRisk) return;
     if (!riskTitle) return;
     const projId = project._id || project.id;
 
@@ -308,6 +313,7 @@ const ProjectDetailsPage = () => {
   };
 
   const handleUpdateRiskStatus = async (rId, nextStatus) => {
+    if (updatingRiskId === rId) return;
     try {
       setUpdatingRiskId(rId);
       await riskApi.update(rId, { status: nextStatus });
@@ -324,6 +330,7 @@ const ProjectDetailsPage = () => {
 
   const handleAddComment = async (e) => {
     e.preventDefault();
+    if (isSubmittingComment) return;
     if (!newCommentText.trim()) return;
     const projId = project._id || project.id;
 
@@ -725,9 +732,15 @@ const ProjectDetailsPage = () => {
               </p>
             ) : (
               comments.map((c) => {
-                const author = c.authorId || {};
-                const authorName = author.name || author.username || 'Nodal Officer';
-                const authorRole = author.role ? author.role.toUpperCase() : (isAdmin ? 'ADMIN' : 'OFFICER');
+                const author = typeof c.authorId === 'object' && c.authorId ? c.authorId : {};
+                const authorName =
+                  author.name ||
+                  author.username ||
+                  author.email ||
+                  (typeof c.authorId === 'string' ? c.authorId : 'Nodal Officer');
+                const authorRole = author.role
+                  ? (author.role.toUpperCase() === 'USER' ? 'MANAGER' : author.role.toUpperCase())
+                  : (isAdmin ? 'ADMIN' : 'MANAGER');
                 const authorInitials = getInitials(authorName);
                 const timestamp = formatCommentTimestamp(c.createdAt);
 

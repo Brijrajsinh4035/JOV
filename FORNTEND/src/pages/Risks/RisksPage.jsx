@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { riskApi, projectApi } from '../../api';
 import { useAppDispatch } from '../../app/hooks';
@@ -7,6 +7,8 @@ import Button from '../../components/common/Button/Button';
 import Badge from '../../components/common/Badge/Badge';
 import Modal from '../../components/common/Modal/Modal';
 import Input from '../../components/common/Input/Input';
+import ConfirmationModal from '../../components/common/ConfirmationModal/ConfirmationModal';
+import Pagination from '../../components/common/Pagination/Pagination';
 import { Skeleton, SkeletonCardList } from '../../components/common/Skeleton';
 import { Plus, RefreshCw, Trash2, ShieldAlert, FolderGit2, Calendar, Download } from 'lucide-react';
 import { formatCrores, formatDate, exportToExcelReadOnly } from '../../utils/formatters';
@@ -19,11 +21,17 @@ const RisksPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [updatingRiskId, setUpdatingRiskId] = useState(null);
+  const [riskToDelete, setRiskToDelete] = useState(null);
+  const [isDeletingRisk, setIsDeletingRisk] = useState(false);
 
   // Filters & Modals
   const [projectFilter, setProjectFilter] = useState('ALL');
   const [severityFilter, setSeverityFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Form State
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -61,6 +69,7 @@ const RisksPage = () => {
 
   const handleCreateRisk = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!riskTitle.trim() || !selectedProjectId) {
       dispatch(addToast({ type: 'error', message: 'Scheme and risk title are required' }));
       return;
@@ -89,6 +98,7 @@ const RisksPage = () => {
   };
 
   const handleStatusChange = async (riskId, nextStatus) => {
+    if (updatingRiskId === riskId) return;
     try {
       setUpdatingRiskId(riskId);
       await riskApi.update(riskId, { status: nextStatus });
@@ -101,15 +111,27 @@ const RisksPage = () => {
     }
   };
 
-  const handleDeleteRisk = async (riskId) => {
-    if (window.confirm('Remove this risk item from register?')) {
-      try {
-        await riskApi.delete(riskId);
-        dispatch(addToast({ type: 'info', message: 'Risk record removed' }));
-        loadData();
-      } catch (err) {
-        dispatch(addToast({ type: 'error', message: err.message || 'Failed deleting risk' }));
-      }
+  const handleDeleteRisk = (risk) => {
+    if (typeof risk === 'object' && risk !== null) {
+      setRiskToDelete({ id: risk._id || risk.id, title: risk.title || 'Untitled Risk' });
+    } else {
+      const found = risks.find((r) => (r._id || r.id) === risk);
+      setRiskToDelete({ id: risk, title: found?.title || 'Untitled Risk' });
+    }
+  };
+
+  const handleConfirmDeleteRisk = async () => {
+    if (!riskToDelete || isDeletingRisk) return;
+    try {
+      setIsDeletingRisk(true);
+      await riskApi.delete(riskToDelete.id);
+      dispatch(addToast({ type: 'info', message: 'Risk record removed' }));
+      setRiskToDelete(null);
+      loadData();
+    } catch (err) {
+      dispatch(addToast({ type: 'error', message: err.message || 'Failed deleting risk' }));
+    } finally {
+      setIsDeletingRisk(false);
     }
   };
 
@@ -119,6 +141,17 @@ const RisksPage = () => {
     const matchesSev = severityFilter === 'ALL' || r.severity === severityFilter;
     return matchesProj && matchesSev;
   });
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [projectFilter, severityFilter]);
+
+  // Paginated risks
+  const paginatedRisks = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRisks.slice(startIndex, startIndex + pageSize);
+  }, [filteredRisks, currentPage, pageSize]);
 
   const handleExportExcel = () => {
     if (!filteredRisks || filteredRisks.length === 0) {
@@ -271,7 +304,7 @@ const RisksPage = () => {
                 </td>
               </tr>
             ) : (
-              filteredRisks.map((r) => {
+              paginatedRisks.map((r) => {
               const rId = r._id || r.id;
               const projId =
                 r.projectId?._id ||
@@ -393,11 +426,12 @@ const RisksPage = () => {
                       )}
                       <button
                         type="button"
+                        disabled={isDeletingRisk}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteRisk(rId);
+                          handleDeleteRisk(r);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Delete Risk Record"
                       >
                         <Trash2 size={15} />
@@ -421,7 +455,7 @@ const RisksPage = () => {
           No risks recorded under the selected criteria.
         </div>
       ) : (
-        filteredRisks.map((r) => {
+        paginatedRisks.map((r) => {
           const rId = r._id || r.id;
           const projId =
             r.projectId?._id ||
@@ -542,11 +576,12 @@ const RisksPage = () => {
                   )}
                   <button
                     type="button"
+                    disabled={isDeletingRisk}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteRisk(rId);
+                      handleDeleteRisk(r);
                     }}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Delete"
                   >
                     <Trash2 size={14} />
@@ -558,6 +593,21 @@ const RisksPage = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && filteredRisks.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredRisks.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 20, 50]}
+        />
+      )}
 
       {/* CREATE RISK MODAL */}
       <Modal
@@ -718,6 +768,21 @@ const RisksPage = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Confirmation Modal for Risk Removal */}
+      <ConfirmationModal
+        isOpen={!!riskToDelete}
+        onClose={() => !isDeletingRisk && setRiskToDelete(null)}
+        onConfirm={handleConfirmDeleteRisk}
+        title="Remove Risk Incident"
+        message="Are you sure you want to remove this risk entry from the project register?"
+        itemName={riskToDelete?.title}
+        confirmText="Delete Risk"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon={Trash2}
+        isLoading={isDeletingRisk}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 
 const Button = ({
   children,
@@ -12,6 +12,41 @@ const Button = ({
   type = 'button',
   ...props
 }) => {
+  const [isClicking, setIsClicking] = useState(false);
+  const lastClickRef = useRef(0);
+
+  const isBusy = disabled || isLoading || isClicking;
+
+  const handleClick = async (e) => {
+    if (isBusy) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastClickRef.current < 350) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    lastClickRef.current = now;
+
+    if (onClick) {
+      try {
+        const result = onClick(e);
+        if (result && typeof result.then === 'function') {
+          setIsClicking(true);
+          await result;
+        }
+      } catch (err) {
+        console.error('Button action error:', err);
+      } finally {
+        setIsClicking(false);
+      }
+    }
+  };
+
   const sizeClasses = {
     sm: 'px-3 py-1.5 text-xs gap-1.5',
     md: 'px-4 py-2 text-sm gap-2',
@@ -35,12 +70,13 @@ const Button = ({
   return (
     <button
       type={type}
-      disabled={disabled || isLoading}
-      onClick={onClick}
+      disabled={isBusy}
+      onClick={handleClick}
+      aria-busy={isBusy}
       className={`inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap ${sizeClasses} ${variantClasses} ${className}`}
       {...props}
     >
-      {isLoading ? (
+      {isLoading || isClicking ? (
         <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
       ) : Icon ? (
         <Icon size={iconSizes} className="shrink-0" />
@@ -51,3 +87,4 @@ const Button = ({
 };
 
 export default Button;
+

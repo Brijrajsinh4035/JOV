@@ -252,7 +252,7 @@ const ReportsPage = () => {
               <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 block font-medium">
                 {filteredProjects.length !== projects.length
                   ? `Filtered from ${projects.length} total schemes`
-                  : 'Live MongoDB Atlas Data Synchronization'}
+                  : ''}
               </span>
             </>
           )}

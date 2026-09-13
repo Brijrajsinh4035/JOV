@@ -25,7 +25,7 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
       ...user,
       id: (user._id || user.id).toString(),
       _id: (user._id || user.id).toString(),
-      role: user.role || (user.isAdmin ? 'admin' : 'user'),
+      role: user.role || (user.isAdmin ? 'admin' : 'manager'),
     };
     return next();
   } catch (err) {

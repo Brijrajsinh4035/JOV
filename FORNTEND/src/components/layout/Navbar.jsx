@@ -12,6 +12,7 @@ import { selectIsAdmin, selectCurrentUser } from '../../features/auth/authSlice'
 import { setSearchQuery, selectProjectsFilters } from '../../features/projects/projectSlice';
 import { Sun, Moon, Menu, Search, LogOut, Bell, ShieldCheck, X, Bot } from 'lucide-react';
 import { getInitials } from '../../utils/formatters';
+import ConfirmationModal from '../common/ConfirmationModal/ConfirmationModal';
 
 const Navbar = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -23,6 +24,18 @@ const Navbar = () => {
   const { search } = useAppSelector(selectProjectsFilters);
 
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setIsLogoutModalOpen(false);
+    }
+  };
 
   return (
     <header className="w-full h-14 sm:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 transition-colors">
@@ -148,20 +161,40 @@ const Navbar = () => {
                     : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                 }`}
               >
-                {user?.role || 'VIEWER'}
+                {user?.role
+                  ? user.role.toUpperCase() === 'USER'
+                    ? 'MANAGER'
+                    : user.role.toUpperCase()
+                  : 'MANAGER'}
               </span>
             </div>
           </div>
 
           <button
-            onClick={logout}
-            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer flex items-center"
+            type="button"
+            onClick={() => setIsLogoutModalOpen(true)}
+            disabled={isLoggingOut}
+            className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             title="Terminate Session"
           >
             <LogOut size={15} />
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => !isLoggingOut && setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        title="Sign Out Confirmation"
+        message="Are you sure you want to end your active session in the National PMIS Portal? You will need to sign in again to access projects and sensitive controls."
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        icon={LogOut}
+        isLoading={isLoggingOut}
+      />
     </header>
   );
 };

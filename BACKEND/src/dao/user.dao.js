@@ -4,15 +4,16 @@ export const normalizeUser = (u) => {
   if (!u) return u;
   const doc = typeof u.toObject === 'function' ? u.toObject() : { ...u };
   const displayName = doc.name || doc.username || 'Government Officer';
-  const role = (doc.role || 'user').toLowerCase();
-  const isAdmin = role === 'admin' || !!doc.isAdmin;
+  const rawRole = (doc.role || 'manager').toLowerCase();
+  const isAdmin = rawRole === 'admin' || !!doc.isAdmin;
+  const role = isAdmin ? 'admin' : (rawRole === 'viewer' ? 'viewer' : 'manager');
   return {
     ...doc,
     _id: doc._id?.toString() || doc.id,
     id: doc._id?.toString() || doc.id,
     username: doc.username || displayName,
     name: displayName,
-    role: role === 'viewer' ? 'viewer' : (isAdmin ? 'admin' : 'user'),
+    role: role,
     isAdmin: isAdmin,
   };
 };
